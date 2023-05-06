@@ -33,54 +33,17 @@ program main
 
     implicit none
 
-    call set_values
+    call initialize
 
-    ! call input
-
-    call gridpnt
-    
-    call initia
-    
-    if (lrstrt) then
-        call readin(nst2, cont, dtime)
-    end if
- 
-    if (time .eq. 0) then
-        call current(x,1)
-        call recrd1
-        !call facur
-    end if
-
-    do while (nst < nend)
+    do while (nstep < nmax)
         call setdt
         call stepon
 
         nstep = nstep + 1
         time = time + dt
         write (*, *) nstep, ' ', 'time=', time, '', 'dt=', dt         !zxg
-        write (*, *) 'nst=', nst
         
-        open (unit=16, file='stepnm', status='unknown', form='formatted')
-        write (16, 99) nstep, time
-99      format(i5, f9.5)
-        close (16)
-        !
-        !zxg to continue
-        if (abs(mod(time, 2.d0)) .le. dt) then
-            open (unit=17, file='continue', status="unknown", form="unformatted")
-            write (17) ncase, nstep, time, nst
-            write (17) x
-            close (17)
-        end if
-        !zxg continue end
 
-        if (abs(time - nst*dtime) .le. dt .and. &
-            (nstep - nstp(nst)) .ge. dnstep) then
-            nst = nst + nint
-            nstp(nst) = nstep
-            call current(x,1)
-            call recrd1
-        end if
 
         !yg----------------
         if ((time .gt. t0) .and. ((time - t0) .le. dt)) then

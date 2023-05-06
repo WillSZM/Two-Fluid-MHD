@@ -5,392 +5,502 @@ module custom_subroutines
 
 contains
 
-    subroutine input
-        !
-        ! --------------------------
-        !  This routine inputs parameters and define basic variables
-        !   LRSTRT: =.f., starting from t=0; =.t., continueing from
-        !           steps as given by NST.
-        !   NEND:   the final steps intended for the current run ,
-        !           including the steps from the previous run.
-        !   NSP:    time step interval for diagnostic plots.
-        !   DELTAV: thickness of the initial velocity shear.
-        !   DELTAC: thickness of the initial current sheet (for
-        !           normalization coventions , see routine INITIA.
-        !   RATIO:  ratio of dy to dx, or the ratio of the width to
-        !           length of the box, if the number of grid points is such
-        !           that my=mx.
-        !   NSMTHX:  the number of rows starting from incoming
-        !           boundary for the smoothing region in x-direction.
-        !   NSMTHY:  the number of rows starting from incoming
-        !           boundary for the smoothing region in y-direction.
-        !   ETA:    exact inverse of magnetic Renolds number.
-        !   GAMMA:  adiabatic constant.
-        !   BETAS:   ratio of kinetic to magnetic pressure at magnetosheath side
-        !   MACHS:   Alfven mach number of incoming flow  at magnetosheath side.
-        !   MACHM:   Alfven mach number of incoming flow at magnetopause side.
-        !   ANGS:    bz=b*cos(ang) and by=b*sin(ang), at magnetosheath side.
-        !   ANGM:    bz=b*cos(ang) and by=b*sin(ang), at magnetopause side.
-        !   TS0:   initia magnetosheath temperature
-        !    tm0:   initia magnetopause temperature.
-        !   BS0:   initia magnetosheath magnetic field strength
-        !   BM0:   initia magnetopause magnetic field strength.
-        !   NCASE:  case number of the run.
-        !   NST:    beginning data file number for the current run.
-        !   NINT:   data file number increment.
-        ! --------------------------
-        !
-
-        ! Coordinates system
-        !                A z     /
-        !                l     /
-        !                l   /
-        !                l /
-        !  <-------------*--------------
-        !  x            /l
-        !             /  l
-        !           /    l
-        !         /      l
-        !        y
+    subroutine initialize
         implicit none
+        ! constants and normalizing parameters
+        v0 = x0 / t0
+        E0 = m0 * v0 / (q0 * t0)
+        B0 = m0 / (q0 * t0)
+        pr0 = m0 * n0 * v0**2
+        Tem0 = m0 * v0**2
+        j0 = B0 / (mu0 * x0)
+        const1 = mu0 * x0**2 * n0 * q0**2 / m0   ! used in calculating current density j
+        const2 = t0**2 / (mu0 * eps0 * x0**2)    ! used in calculating electric field E
 
-        integer :: jx, jz
+        
+        ! grid and index
+        Nx=101
+        Ny=101
+        Nz=101
+        xmin = -15.d0
+        xmax = 15.d0
+        ymin = -50.d0
+        ymax = 50.d0
+        zmin = -50.d0
+        zmax = 50.d0
+        allocate(x(Nx), y(Ny), z(Nz))
+        call grid
 
-        ! nx = mx - 1
-        ! ny = my - 1
-        ! nz = mz - 1
-
-!         call gridpnt
-!         open (unit=11, file='grid.dat', status='unknown', form='formatted')
-!         write (11, 99) (xx(jx), jx=1, mx), (zz(jz), jz=1, mz)
-! 99      format(5(1x, e10.4))
-
-        ! time = 0.0
-        ! nstep = 0
-        ! nst1 = 1
-
-        return
-    end subroutine
-
-    subroutine initia
-
-        !----------------
-        ! Defines coordinates system and specifies initial configuration.
-        ! Normlization convention:
-        !   1. Density --- normalised to asymtotic value, i.e., rho=1
-        !   2. Magnetic field --- normalised to asymtotic value, i.e.,
-        !                         b0=1.
-        !   3. Velocity --- normalised to asymtotic Alfven speed, VA=1, a
-        !                   natural result of 1. and 2.
-        !   4. Length --- normalised to a=10*dx, i.e., dx=0.1
-        !   5. Time --- normalised to a/VA.
-        !---------------
-    
-        ! assign asymmetric quantities:
-
-        implicit none
-
-        real(kind=8) :: rhom, rhos, pp, gaminv, phi, phirad, delbz, by0, bz0, pmsp, pmsh, betas, p0, bzm, bzs
-        real(kind=8) :: betam, bm0, bs0, epsilon
-        real(kind=8) :: signy, thita_Xline, thita_Xline_rad, tan_Xline
-        integer :: jx, jy, jz
-
+        ! time and time step
         time = 0.0
-        t0 = 0.0
         nstep = 0
 
-        gamma = 1.66667d0
-        di = 0.3d0
-        aw = 1d0    !used in function foreta
+        ! physical parameter
+        allocate(ne(Nx, Ny, Nz), ni(Nx, Ny, Nz))
+        allocate(vex(Nx, Ny, Nz), vey(Nx, Ny, Nz), vez(Nx, Ny, Nz), vix(Nx, Ny, Nz), viy(Nx, Ny, Nz), viz(Nx, Ny, Nz))
+        allocate(Bsx(Nx, Ny, Nz), Bsy(Nx, Ny, Nz), Bsz(Nx, Ny, Nz), Bex(Nx, Ny, Nz), Bey(Nx, Ny, Nz), Bez(Nx, Ny, Nz))
+        allocate(Esx(Nx, Ny, Nz), Esy(Nx, Ny, Nz), Esz(Nx, Ny, Nz), Eex(Nx, Ny, Nz), Eey(Nx, Ny, Nz), Eez(Nx, Ny, Nz))
+        allocate(Bsx_pre(Nx,Ny,Nz), Bsy_pre(Nx,Ny,Nz), Bsz_pre(Nx,Ny,Nz))
+        allocate(Esx_pre(Nx,Ny,Nz), Esy_pre(Nx,Ny,Nz), Esz_pre(Nx,Ny,Nz))
+        allocate(Bx(Nx, Ny, Nz), By(Nx, Ny, Nz), Bz(Nx, Ny, Nz), Ex(Nx, Ny, Nz), Ey(Nx, Ny, Nz), Ez(Nx, Ny, Nz))
+        allocate(jx(Nx, Ny, Nz), jy(Nx, Ny, Nz), jz(Nx, Ny, Nz))
+        allocate(Te(Nx, Ny, Nz), Ti(Nx, Ny, Nz))
+        allocate(pre(Nx, Ny, Nz), pri(Nx, Ny, Nz), eta(Nx, Ny, Nz))
+        allocate(divB(Nx,Ny,Nz))
+        ne = 1.d0
+        ni = 1.d0
+        vex = 0.d0
+        vey = 0.d0
+        vez = 0.d0
+        vix = 0.d0
+        viy = 0.d0
+        viz = 0.d0
+        Bsx = 0.d0
+        Bsy = 0.d0
+        Bsz = 0.d0
+        Bex = 0.d0
+        Bey = 0.d0
+        Bez = 0.d0
+        Esx = 0.d0
+        Esy = 0.d0
+        Esz = 0.d0
+        Eex = 0.d0
+        Eey = 0.d0
+        Eez = 0.d0
+        Bx = Bsx + Bex
+        By = Bsy + Bey
+        Bz = Bsz + Bez
+        Ex = Esx + Eex
+        Ey = Esy + Eey
+        Ez = Esz + Eez
+        Te = 1.d0
+        Ti = 1.d0
+        eta = 0.d0
+        call current
+        call pressure
 
-        betam = 0.01d0  !beta in magnetopause
-        bm0 = 1.d0  !initia magnetopause magnetic field strength
-        bs0 = 1.d0  !initia magnetosheath magnetic field strength
-        pmsp = betam*(0.5*bm0**2)   !thermal pressure in magnetopause
-        pmsh = pmsp + 0.5*(bm0**2 - bs0**2) !thermal pressure in magnetosheath
-        betas = pmsh/(0.5*bs0**2)   !beta in magnetosheath
-
-        epsilon = 0.d0
-        rhom = 0.1
-        rhos = 0.1
-        pp = 0.
-        gaminv = 1./gamma
-
-        phi = 180.d0
-        phirad = 2.*pi*phi/360.
-        delbz = 0.5*sqrt(bm0**2 + bs0**2 - 2.*bm0*bs0*cos(phirad))
-        by0 = 0.5*bs0*sin(phirad)/delbz
-        bz0 = 0.25*(bm0**2 - bs0**2)/delbz
-        bzm = bz0 + delbz
-        bzs = bz0 - delbz
-
-        vyi0 = 0.d0
-
-        signy = 1
-        if (phi .lt. 180) signy = -1
-
-        !cjx  the angle between the X-line(Y-direction) and MR plane
-        thita_Xline = 0.0
-        thita_Xline_rad = 2.*pi*thita_Xline/360.
-        tan_Xline = tan(thita_Xline_rad)
-        !cjx  -------------------------------------------------
-
-        ! xi is exactly the same with x in initialization, so just make them equal
-        do jz = 1, mz
-        do jy = 1, my
-        do jx = 1, mx
-            x(jx, jy, jz, 1) = 1.0
-            
-            x(jx, jy, jz, 2) = 0.0
-            x(jx, jy, jz, 3) = 0.0
-            x(jx, jy, jz, 4) = 0.0
-
-            x(jx, jy, jz, 5) = 0.0
-            x(jx, jy, jz, 6) = 0.0
-            x(jx, jy, jz, 7) = -tanh(xx(jx))
-
-            etaf(jx, jy, jz) = 0.0d0
-
-        end do
-        end do
-        end do
-        !cjx----------------------------------------------------------------
-        !      do 3 jz=1,mz
-        !      do 3 jy=1,my
-        !      do 3 jx=1,mx
-        !      x(jx,jy,jz,1) = 0.5*(rhom+rhos) +0.5*(rhom-rhos)*tanh(xx(jx)/aw)
-        !      x(jx,jy,jz,5)  = 0.0
-        !      x(jx,jy,jz,6)  = signy*sqrt(by0*by0+epsilon*delbz*delbz
-        !     1              /cosh(xx(jx)/aw)**2)
-        !      x(jx,jy,jz,7)  = bz0 - delbz*tanh(xx(jx)/aw)
-        !      xi(jx,jy,jz,1) = 0.5*(rhom+rhos)
-        !     1   +0.5*(rhom-rhos)*tanh((xx(jx)+dx/2.)/aw)
-        !      xi(jx,jy,jz,5)  = 0.0
-        !      xi(jx,jy,jz,6)  = signy*sqrt(by0*by0+epsilon*delbz*delbz
-        !     1              /cosh((xx(jx)+dx/2.)/aw)**2)
-        !      xi(jx,jy,jz,7)  = bz0 - delbz*tanh((xx(jx)+dx/2.)/aw)
-        !    3 continue
-
-        !      do 4 jz=1,mz
-        !      do 4 jy=1,my
-        !      do 4 jx=1,mx
-        !      x(jx,jy,jz,2)=0.
-        !      x(jx,jy,jz,3)=0.5*v0*x(jx,jy,jz,6)*(1.-tanh(xx(jx)/aw))
-        !     1                    *x(jx,jy,jz,1)/bs0
-        !      x(jx,jy,jz,4)=0.5*v0*x(jx,jy,jz,7)*(1.-tanh(xx(jx)/aw))
-        !     1                    *x(jx,jy,jz,1)/bs0
-        !      xi(jx,jy,jz,2)=0.
-        !      xi(jx,jy,jz,3)=0.5*v0*x(jx,jy,jz,6)*
-        !     1        (1.-tanh((xx(jx)+dx/2.)/aw))*x(jx,jy,jz,1)/bs0
-        !      xi(jx,jy,jz,4)  = 0.5*v0*x(jx,jy,jz,7)*
-        !     1        (1.-tanh((xx(jx)+dx/2.)/aw))*x(jx,jy,jz,1)/bs0
-        !    4 continue
-        !
-        !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        ! controling parameter
+        is_abnormal_resistance = .false.
         
-        presc = 1.0 !total pressure in magnetopause
-
-        do jz = 1, mz
-        do jy = 1, my
-        do jx = 1, mx
-            hb2 = .5*(x(jx, jy, jz, 5)**2 + x(jx, jy, jz, 6)**2 + x(jx, jy, jz, 7)**2)
-            hv2 = .5*(x(jx, jy, jz, 2)**2 + x(jx, jy, jz, 3)**2 + x(jx, jy, jz, 4)**2)/x(jx, jy, jz, 1)
-            pr(jx, jy, jz) = presc - hb2
-            x(jx, jy, jz, 8) = hv2 + hb2 + pr(jx, jy, jz)/(gamma - 1)
-        end do
-        end do
-        end do
-
-        xi = x
-        
-        call current(xi, 1)
-
-        xi(:,:,:,3) = xi(:,:,:,3) + vyi0*di*w0(:,:,:,2)
-
-        call current(x, 1)
-
-        x(:,:,:,3) = x(:,:,:,3) + vyi0*di*w0(:,:,:,2)
-
-        fx = x(:,1,1,:)
-        fxi = xi(:,1,1,:)
-
-        xm = 0
-        do jz = 1, mz
-            do jy = 1, my
-                xi(:,jy,jz,:) = x(:,jy,jz,:) - fxi
-            end do
-        end do
-
-        return
     end subroutine
+
+
 
     subroutine stepon
-
-        !     This routine time-advances X's by 2 step Lax-Wendroff scheme
-        !     note: X is always the up-to-date value while Xm being the
-        !           intermediate value.
-
-
         implicit none
 
-        real(kind=8) :: hdt, cmax ,cmin, xcmax, ycmax, zcmax, xcmin, ycmin, zcmin, caf0
-        real(kind=8) :: fdx(mx,my,mz)=0, gdy(mx,my,mz)=0, hdz(mx,my,mz)=0, ppx(mx,my,mz)=0
-        integer :: jx, jy, jz, m, k
-        !cmax and cmin seems not been used
-        !
-        ! 1. first step
-        !
-        ! 1.1 Calculate fluxes
+        call continuity_equation
+        call momentum_equation
+        call energy_equation
+        call EMField_eqution
 
-        ! 1.2 Advance the first step
-        hdt = 0.5*dt
-        call current(x, 1)
-        call foreta(time, 1)
-        call pressure(x, 1)
+        call abnormal_resistance
+        call current
+        call pressure
 
-        do m = 1, 8
-
-            call flux(x, fs, gs, hs, mx, my, mz, m, 1)
-
-            fdx(1:nx,1:ny,1:nz) = -hdt*( fs(2:nx+1,2:ny+1,2:nz+1) - fs(1:nx,2:ny+1,2:nz+1) &
-                                        + fs(2:nx+1,2:ny+1,1:nz) - fs(1:nx,2:ny+1,1:nz) &
-                                        + fs(2:nx+1,1:ny,2:nz+1) - fs(1:nx,1:ny,2:nz+1) &
-                                        + fs(2:nx+1,1:ny,1:nz) - fs(1:nx,1:ny,1:nz) )/(4.0*dx)
-            gdy(1:nx,1:ny,1:nz) = -hdt*( gs(2:nx+1,2:ny+1,2:nz+1) - gs(2:nx+1,1:ny,2:nz+1) &
-                                        + gs(2:nx+1,2:ny+1,1:nz) - gs(2:nx+1,1:ny,1:nz) &
-                                        + gs(1:nx,2:ny+1,2:nz+1) - gs(1:nx,1:ny,2:nz+1) &
-                                        + gs(1:nx,2:ny+1,1:nz) - gs(1:nx,1:ny,1:nz) ) / (4.0*dy)
-            hdz(1:nx,1:ny,1:nz) = -hdt*( hs(2:nx+1,2:ny+1,2:nz+1) - hs(2:nx+1,2:ny+1,1:nz) &
-                                        + hs(2:nx+1,1:ny,2:nz+1) - hs(2:nx+1,1:ny,1:nz) &
-                                        + hs(1:nx,2:ny+1,2:nz+1) - hs(1:nx,2:ny+1,1:nz) &
-                                        + hs(1:nx,1:ny,2:nz+1) - hs(1:nx,1:ny,1:nz) ) / (4.0*dz)
-            ppx(1:nx,1:ny,1:nz) = ( xi(1:nx,1:ny,1:nz,m) + xi(2:nx+1,1:ny,1:nz,m) + xi(1:nx,2:ny+1,1:nz,m) &
-                                    + xi(1:nx,1:ny,2:nz+1,m) + xi(2:nx+1,2:ny+1,1:nz,m) + xi(1:nx,2:ny+1,2:nz+1,m) &
-                                    + xi(2:nx+1,1:ny,2:nz+1,m) + xi(2:nx+1,2:ny+1,2:nz+1,m) ) / 8.0
-
-            xm(1:nx,1:ny,1:nz,m) = fdx(1:nx,1:ny,1:nz) + gdy(1:nx,1:ny,1:nz) &
-                                    + hdz(1:nx,1:ny,1:nz) + ppx(1:nx,1:ny,1:nz)
-            do jz = 1, nz
-                do jy = 1, ny
-                    xm(:,jy,jz,m) = xm(:,jy,jz,m) + fxi(:,m)
-                end do
-            end do
-
-        end do
-
-        
-        
-        
-        ! 2. Second step
-        
-        ! 2.1 Calculate fluxes
-        ! 2.2 Advance the second time step
-        call current(xm, 2)
-        call foreta(time, 2)
-        call pressure(xm, 2)
-
-        do m = 1, 8
-            call flux(xm, fs, gs, hs, nx, ny, nz, m, 2)
-
-            fdx(2:nx,2:ny,2:nz) = -dt*( fs(2:nx,2:ny,2:nz) - fs(1:nx-1,2:ny,2:nz) &
-                                        + fs(2:nx,2:ny,1:nz-1) - fs(1:nx-1,2:ny,1:nz-1) &
-                                        + fs(2:nx,1:ny-1,2:nz ) - fs(1:nx-1,1:ny-1,2:nz ) &
-                                        + fs(2:nx,1:ny-1,1:nz-1) - fs(1:nx-1,1:ny-1,1:nz-1) ) / (4.0*dx)
-            gdy(2:nx,2:ny,2:nz) = -dt*( gs(2:nx,2:ny,2:nz) - gs(2:nx ,1:ny-1,2:nz ) &
-                                        + gs(2:nx,2:ny,1:nz-1) - gs(2:nx,1:ny-1,1:nz-1) &
-                                        + gs(1:nx-1,2:ny,2:nz) - gs(1:nx-1,1:ny-1,2:nz) &
-                                        + gs(1:nx-1,2:ny,1:nz-1) - gs(1:nx-1,1:ny-1,1:nz-1) ) / (4.0*dy)
-            hdz(2:nx,2:ny,2:nz) = -dt*( hs(2:nx,2:ny,2:nz) - hs(2:nx,2:ny,1:nz-1) &
-                                        + hs(2:nx,1:ny-1,2:nz) - hs(2:nx,1:ny-1,1:nz-1) &
-                                        + hs(1:nx-1,2:ny,2:nz) - hs(1:nx-1,2:ny,1:nz-1) &
-                                        + hs(1:nx-1,1:ny-1,2:nz) - hs(1:nx-1,1:ny-1,1:nz-1) ) / (4.0*dz)
-            x(2:nx,2:ny,2:nz,m) = x(2:nx,2:ny,2:nz,m) + fdx(2:nx,2:ny,2:nz) + gdy(2:nx,2:ny,2:nz) + hdz(2:nx,2:ny,2:nz)
-
-        end do
-
-        call bndry(x, 1)
-
-        !      if(mod(nstep,10).eq.0) call cleanb
-        caf0 = 1.-0.25*tanh(time/100.0)
-
-        do jz = 1, mz
-        do jy = 1, my
-            xi(:, jy, jz, :) = x(:, jy, jz, :) - fx(:, :)
-        end do
-        end do
-
-
-        !      call smthf(xi,caf0)
-
-        if (mod(nstep, 3) .eq. 0) then
-            call smthxyz(xi, 0.875d0, 1)    !smooth for the first time
-            call smthxyz(xi, 0.996d0, 1)    !smooth for the second time
-        end if
-
-        do jz = 1, mz
-        do jy = 1, my
-            x(:, jy, jz, :) = xi(:, jy, jz, :) + fx(:, :)
-        end do
-        end do
-
-
-        if (mod(nstep, 10) .eq. 0) then
-            call current(x, 1)
-            do jz = 1, mz
-            do jy = 1, my
-            do jx = 1, mx
-                ! magnetic field strength
-                MagStr(jx, jy, jz) = sqrt(x(jx, jy, jz, 5)**2 + x(jx, jy, jz, 6)**2 + x(jx, jy, jz, 7)**2)
-                ! j parallel
-                j_para(jx, jy, jz) = (w0(jx, jy, jz, 1)*x(jx, jy, jz, 5) + w0(jx, jy, jz, 2) &
-                                     *x(jx, jy, jz, 6) + w0(jx, jy, jz, 3)*x(jx, jy, jz, 7))/MagStr(jx, jy, jz)
-            end do
-            end do
-            end do
-
-            open (unit=14, file='facmax.dat', status='unknown', form='formatted')
-            write (14, 12) time, nstep, ncase
-            k = 0
-            do while (k < 8)
-                k = k + 1
-                jz = (mz*k/9.) + 1
-                cmax = -10.
-                cmin = 10.
-
-                do jy = 1, my
-                do jx = 1, mx - 2
-                    if (xm(jx, jy, jz, 2) .gt. cmax) then
-                        cmax = j_para(jx, jy, jz)
-                        xcmax = xx(jx)
-                        ycmax = yy(jy)
-                        zcmax = zz(jz)
-                    end if
-                    if (xm(jx, jy, jz, 2) .lt. cmin) then
-                        cmin = j_para(jx, jy, jz)
-                        xcmin = xx(jx)
-                        ycmin = yy(jy)
-                        zcmin = zz(jz)
-                    end if
-                end do
-                end do
-
-                write (14, 13) xcmin, ycmin, zcmin, xcmax, ycmax, zcmax, cmin, cmax
-            end do
-
-12          format(1x, f8.2, 2(2x, i5))
-13          format(6(1x, f6.1), 2(1x, e11.3))
-            !      if(mod(nstep,30).eq.0) then
-            !      open(unit=15,file='sat.dat',status='unknown',form='formatted')
-            !      write(15,12)(time,nstep,ncase)
-            !      write(15,17)((xm(jx,jy,6,2),jx=11,nx,10),jy=1,my,4)
-            !   17 format(8(1x,e9.3))
-            !      endif
-        end if
-
-        if (mod(nstep, 20) .eq. 0) call energy
-
-        return
+        call check
     end subroutine
+
+    subroutine energy_equation
+        implicit none
+        real(kind=8), allocatable :: K1(:,:,:), K2(:,:,:), K3(:,:,:), K4(:,:,:), temp(:,:,:)
+        real(kind=8), allocatable :: cdiffx(:,:,:), cdiffy(:,:,:), cdiffz(:,:,:)
+
+        allocate(K1(Nx, Ny, Nz), K2(Nx, Ny, Nz), K3(Nx, Ny, Nz), K4(Nx, Ny, Nz), temp(Nx, Ny, Nz))
+        allocate(cdiffx(Nx,Ny,Nz),cdiffy(Nx,Ny,Nz),cdiffz(Nx,Ny,Nz))
+
+        ! Te first
+        ! inner points use RK4
+        K1 = -tau * (vex * central_difference_x(Te,hx) + vey * central_difference_y(Te,hy) + vez * central_difference_z(Te,hz))
+        K2 = -tau * (vex * central_difference_x(Te+K1/2.0d0,hx) + vey * central_difference_y(Te+K1/2.0d0,hy) + vez * central_difference_z(Te+K1/2.0d0,hz))
+        K3 = -tau * (vex * central_difference_x(Te+K2/2.0d0,hx) + vey * central_difference_y(Te+K2/2.0d0,hy) + vez * central_difference_z(Te+K2/2.0d0,hz))
+        K4 = -tau * (vex * central_difference_x(Te+K3,hx) + vey * central_difference_y(Te+K3,hy) + vez * central_difference_z(Te+K3,hz))
+        temp = Te + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+
+        ! subouter points use Euler
+        cdiffx = central_difference_x(Te,hx)
+        cdiffy = central_difference_y(Te,hy)
+        cdiffz = central_difference_z(Te,hz)
+
+        temp(2:4,:,:) = Te(2:4,:,:) - tau * (vex(2:4,:,:) * cdiffx(2:4,:,:) + vey(2:4,:,:) * cdiffy(2:4,:,:) + vez(2:4,:,:) * cdiffz(2:4,:,:))
+        temp(Nx-3:Nx-1,:,:) = Te(Nx-3:Nx-1,:,:) - tau * (vex(Nx-3:Nx-1,:,:) * cdiffx(Nx-3:Nx-1,:,:) + vey(Nx-3:Nx-1,:,:) * cdiffy(Nx-3:Nx-1,:,:) + vez(Nx-3:Nx-1,:,:) * cdiffz(Nx-3:Nx-1,:,:))
+        temp(:,2:4,:) = Te(:,2:4,:) - tau * (vex(:,2:4,:) * cdiffx(:,2:4,:) + vey(:,2:4,:) * cdiffy(:,2:4,:) + vez(:,2:4,:) * cdiffz(:,2:4,:))
+        temp(:,Ny-3:Ny-1,:) = Te(:,Ny-3:Ny-1,:) - tau * (vex(:,Ny-3:Ny-1,:) * cdiffx(:,Ny-3:Ny-1,:) + vey(:,Ny-3:Ny-1,:) * cdiffy(:,Ny-3:Ny-1,:) + vez(:,Ny-3:Ny-1,:) * cdiffz(:,Ny-3:Ny-1,:))
+        temp(:,:,2:4) = Te(:,:,2:4) - tau * (vex(:,:,2:4) * cdiffx(:,:,2:4) + vey(:,:,2:4) * cdiffy(:,:,2:4) + vez(:,:,2:4) * cdiffz(:,:,2:4))
+        temp(:,:,Nz-3:Nz-1) = Te(:,:,Nz-3:Nz-1) - tau * (vex(:,:,Nz-3:Nz-1) * cdiffx(:,:,Nz-3:Nz-1) + vey(:,:,Nz-3:Nz-1) * cdiffy(:,:,Nz-3:Nz-1) + vez(:,:,Nz-3:Nz-1) * cdiffz(:,:,Nz-3:Nz-1))
+
+        ! add other terms
+        temp = temp + tau * 2.0d0 / (3.0d0*ne) * (-pre * (central_difference_x(vex,hx) + central_difference_y(vey,hy) + central_difference_z(vez,hz)))
+
+        ! boundary points
+        call boundary(temp)
+
+        ! update Te
+        Te = temp
+
+        ! Ti second
+        ! inner points use RK4
+        K1 = -tau * (vix * central_difference_x(Ti,hx) + viy * central_difference_y(Ti,hy) + viz * central_difference_z(Ti,hz))
+        K2 = -tau * (vix * central_difference_x(Ti+K1/2.0d0,hx) + viy * central_difference_y(Ti+K1/2.0d0,hy) + viz * central_difference_z(Ti+K1/2.0d0,hz))
+        K3 = -tau * (vix * central_difference_x(Ti+K2/2.0d0,hx) + viy * central_difference_y(Ti+K2/2.0d0,hy) + viz * central_difference_z(Ti+K2/2.0d0,hz))
+        K4 = -tau * (vix * central_difference_x(Ti+K3,hx) + viy * central_difference_y(Ti+K3,hy) + vez * central_difference_z(Te+K3,hz))
+        temp = Ti + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+
+        ! subouter points use Euler
+        cdiffx = central_difference_x(Ti,hx)
+        cdiffy = central_difference_y(Ti,hy)
+        cdiffz = central_difference_z(Ti,hz)
+
+        temp(2:4,:,:) = Ti(2:4,:,:) - tau * (vix(2:4,:,:) * cdiffx(2:4,:,:) + viy(2:4,:,:) * cdiffy(2:4,:,:) + viz(2:4,:,:) * cdiffz(2:4,:,:))
+        temp(Nx-3:Nx-1,:,:) = Ti(Nx-3:Nx-1,:,:) - tau * (vix(Nx-3:Nx-1,:,:) * cdiffx(Nx-3:Nx-1,:,:) + viy(Nx-3:Nx-1,:,:) * cdiffy(Nx-3:Nx-1,:,:) + viz(Nx-3:Nx-1,:,:) * cdiffz(Nx-3:Nx-1,:,:))
+        temp(:,2:4,:) = Ti(:,2:4,:) - tau * (vix(:,2:4,:) * cdiffx(:,2:4,:) + viy(:,2:4,:) * cdiffy(:,2:4,:) + viz(:,2:4,:) * cdiffz(:,2:4,:))
+        temp(:,Ny-3:Ny-1,:) = Ti(:,Ny-3:Ny-1,:) - tau * (vix(:,Ny-3:Ny-1,:) * cdiffx(:,Ny-3:Ny-1,:) + viy(:,Ny-3:Ny-1,:) * cdiffy(:,Ny-3:Ny-1,:) + viz(:,Ny-3:Ny-1,:) * cdiffz(:,Ny-3:Ny-1,:))
+        temp(:,:,2:4) = Ti(:,:,2:4) - tau * (vix(:,:,2:4) * cdiffx(:,:,2:4) + viy(:,:,2:4) * cdiffy(:,:,2:4) + viz(:,:,2:4) * cdiffz(:,:,2:4))
+        temp(:,:,Nz-3:Nz-1) = Te(:,:,Nz-3:Nz-1) - tau * (vix(:,:,Nz-3:Nz-1) * cdiffx(:,:,Nz-3:Nz-1) + viy(:,:,Nz-3:Nz-1) * cdiffy(:,:,Nz-3:Nz-1) + viz(:,:,Nz-3:Nz-1) * cdiffz(:,:,Nz-3:Nz-1))
+
+        ! add other terms
+        temp = temp + tau * 2.0d0 / (3.0d0*ni) * (-pri * (central_difference_x(vix,hx) + central_difference_y(viy,hy) + central_difference_z(viz,hz)))
+
+        ! boundary points
+        call boundary(temp)
+
+        ! update Te
+        Te = temp
+
+        deallocate(K1, K2, K3, K4)
+        deallocate(cdiffx, cdiffy, cdiffz)
+
+    end subroutine
+
+    subroutine continuity_equation
+        implicit none
+        real(kind=8), allocatable :: K1(:,:,:), K2(:,:,:), K3(:,:,:), K4(:,:,:), temp(:,:,:)
+        real(kind=8), allocatable :: cdiffx(:,:,:), cdiffy(:,:,:), cdiffz(:,:,:)
+
+        allocate(K1(Nx, Ny, Nz), K2(Nx, Ny, Nz), K3(Nx, Ny, Nz), K4(Nx, Ny, Nz), temp(Nx, Ny, Nz))
+        allocate(cdiffx(Nx,Ny,Nz),cdiffy(Nx,Ny,Nz),cdiffz(Nx,Ny,Nz))
+
+        ! ne first
+        ! inner points use RK4
+        K1 = -tau * (central_difference_x(ne*vex, hx)+central_difference_y(ne*vey, hy)+central_difference_z(ne*vez, hz))
+        K2 = -tau * (central_difference_x((ne+K1/2.0d0)*vex, hx)+central_difference_y((ne+K1/2.0d0)*vey, hy)+central_difference_z((ne+K1/2.0d0)*vez, hz))
+        K3 = -tau * (central_difference_x((ne+K2/2.0d0)*vex, hx)+central_difference_y((ne+K2/2.0d0)*vey, hy)+central_difference_z((ne+K2/2.0d0)*vez, hz))
+        K4 = -tau * (central_difference_x((ne+K3)*vex, hx)+central_difference_y((ne+K3)*vey, hy)+central_difference_z((ne+K3)*vez, hz))
+        temp = ne + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+
+        ! subouter points use Euler
+        cdiffx = central_difference_x(ne*vex,hx)
+        cdiffy = central_difference_y(ne*vey,hy)
+        cdiffz = central_difference_z(ne*vez,hz)
+
+        temp(2:4,:,:) = ne(2:4,:,:) - tau * (cdiffx(2:4,:,:) + cdiffy(2:4,:,:) + cdiffz(2:4,:,:))
+        temp(Nx-3:Nx-1,:,:) = ne(Nx-3:Nx-1,:,:) - tau * (cdiffx(Nx-3:Nx-1,:,:) + cdiffy(Nx-3:Nx-1,:,:) + cdiffz(Nx-3:Nx-1,:,:))
+        temp(:,2:4,:) = ne(:,2:4,:) - tau * (cdiffx(:,2:4,:) + cdiffy(:,2:4,:) + cdiffz(:,2:4,:))
+        temp(:,Ny-3:Ny-1,:) = ne(:,Ny-3:Ny-1,:) - tau * (cdiffx(:,Ny-3:Ny-1,:) + cdiffy(:,Ny-3:Ny-1,:) + cdiffz(:,Ny-3:Ny-1,:))
+        temp(:,:,2:4) = ne(:,:,2:4) - tau * (cdiffx(:,:,2:4) + cdiffy(:,:,2:4) + cdiffz(:,:,2:4))
+        temp(:,:,Nz-3:Nz-1) = ne(:,:,Nz-3:Nz-1) - tau * (cdiffx(:,:,Nz-3:Nz-1) + cdiffy(:,:,Nz-3:Nz-1) + cdiffz(:,:,Nz-3:Nz-1))
+
+        ! boundary points
+        call boundary(temp)
+
+        ! update ne
+        ne = temp
+
+        ! ni second
+        ! inner points use RK4
+        K1 = -tau * (central_difference_x(ni*vix, hx)+central_difference_y(ni*viy, hy)+central_difference_z(ni*viz, hz))
+        K2 = -tau * (central_difference_x((ni+K1/2.0d0)*vix, hx)+central_difference_y((ni+K1/2.0d0)*viy, hy)+central_difference_z((ni+K1/2.0d0)*viz, hz))
+        K3 = -tau * (central_difference_x((ni+K2/2.0d0)*vix, hx)+central_difference_y((ni+K2/2.0d0)*viy, hy)+central_difference_z((ni+K2/2.0d0)*viz, hz))
+        K4 = -tau * (central_difference_x((ni+K3)*vix, hx)+central_difference_y((ni+K3)*viy, hy)+central_difference_z((ni+K3)*viz, hz))
+        temp = ni + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+
+        ! subouter points use Euler
+        cdiffx = central_difference_x(ni*vix,hx)
+        cdiffy = central_difference_y(ni*viy,hy)
+        cdiffz = central_difference_z(ni*viz,hz)
+
+        temp(2:4,:,:) = ni(2:4,:,:) - tau * (cdiffx(2:4,:,:) + cdiffy(2:4,:,:) + cdiffz(2:4,:,:))
+        temp(Nx-3:Nx-1,:,:) = ni(Nx-3:Nx-1,:,:) - tau * (cdiffx(Nx-3:Nx-1,:,:) + cdiffy(Nx-3:Nx-1,:,:) + cdiffz(Nx-3:Nx-1,:,:))
+        temp(:,2:4,:) = ni(:,2:4,:) - tau * (cdiffx(:,2:4,:) + cdiffy(:,2:4,:) + cdiffz(:,2:4,:))
+        temp(:,Ny-3:Ny-1,:) = ni(:,Ny-3:Ny-1,:) - tau * (cdiffx(:,Ny-3:Ny-1,:) + cdiffy(:,Ny-3:Ny-1,:) + cdiffz(:,Ny-3:Ny-1,:))
+        temp(:,:,2:4) = ni(:,:,2:4) - tau * (cdiffx(:,:,2:4) + cdiffy(:,:,2:4) + cdiffz(:,:,2:4))
+        temp(:,:,Nz-3:Nz-1) = ne(:,:,Nz-3:Nz-1) - tau * (cdiffx(:,:,Nz-3:Nz-1) + cdiffy(:,:,Nz-3:Nz-1) + cdiffz(:,:,Nz-3:Nz-1))
+        ! boundary points
+        call boundary(temp)
+
+        ! update ni
+        ni = temp
+
+        deallocate(K1, K2, K3, K4, temp)
+    end subroutine
+
+    subroutine momentum_equation
+        implicit none
+        real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:), temp3(:,:,:)
+        real(kind=8), allocatable :: K1(:,:,:), K2(:,:,:), K3(:,:,:), K4(:,:,:)
+
+        allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz), temp3(Nx,Ny,Nz))
+        allocate(K1(Nx,Ny,Nz), K2(Nx,Ny,Nz), K3(Nx,Ny,Nz), K4(Nx,Ny,Nz))
+
+        ! electron
+        ! inner points use RK4
+        ! vex
+        K1 = -tau * (vex * central_difference_x(vex, hx) + vey * central_difference_y(vex, hy) + vez * central_difference_z(vex, hz))
+        K2 = -tau * ((vex+K1/2.0d0) * central_difference_x(vex+K1/2.0d0, hx) + vey * central_difference_y(vex+K1/2.0d0, hy) + vez * central_difference_z(vex+K1/2.0d0, hz))
+        K3 = -tau * ((vex+K2/2.0d0) * central_difference_x(vex+K2/2.0d0, hx) + vey * central_difference_y(vex+K2/2.0d0, hy) + vez * central_difference_z(vex+K2/2.0d0, hz))
+        K4 = -tau * ((vex+K3) * central_difference_x(vex+K3, hx) + vey * central_difference_y(vex+K3, hy) + vez * central_difference_z(vex+K3, hz))
+        temp1 = vex + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+        
+        ! vey
+        K1 = -tau * (vex * central_difference_x(vey, hx) + vey * central_difference_y(vey, hy) + vez * central_difference_z(vey, hz))
+        K2 = -tau * (vex * central_difference_x(vey+K1/2.0d0, hx) + (vey+K1/2.0d0) * central_difference_y(vey+K1/2.0d0, hy) + vez * central_difference_z(vey+K1/2.0d0, hz))
+        K3 = -tau * (vex * central_difference_x(vey+K2/2.0d0, hx) + (vey+K2/2.0d0) * central_difference_y(vey+K2/2.0d0, hy) + vez * central_difference_z(vey+K2/2.0d0, hz))
+        K4 = -tau * (vex * central_difference_x(vey+K3, hx) + (vey+K3) * central_difference_y(vey+K3, hy) + vez * central_difference_z(vey+K3, hz))
+        temp2 = vey + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+        
+        ! vez
+        K1 = -tau * (vex * central_difference_x(vez, hx) + vey * central_difference_y(vez, hy) + vez * central_difference_z(vez, hz))
+        K2 = -tau * (vex * central_difference_x(vez+K1/2.0d0, hx) + vey * central_difference_y(vez+K1/2.0d0, hy) + (vez+K1/2.0d0) * central_difference_z(vez+K1/2.0d0, hz))
+        K3 = -tau * (vex * central_difference_x(vez+K2/2.0d0, hx) + vey * central_difference_y(vez+K2/2.0d0, hy) + (vez+K2/2.0d0) * central_difference_z(vez+K2/2.0d0, hz))
+        K4 = -tau * (vex * central_difference_x(vez+K3, hx) + vey * central_difference_y(vez+K3, hy) + (vez+K3) * central_difference_z(vez+K3, hz))
+        temp3 = vez + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+        
+
+        ! subouter points use Euler
+        call momentum_subouter(temp1, temp2, temp3, 1)
+
+        ! add other terms
+        temp1 = temp1 + tau / (me * ne) * (ne * qe * (Ex + (vey * Bz - vez * By)) - central_difference_x(pre, hx))
+        temp2 = temp2 + tau / (me * ne) * (ne * qe * (Ey + (vez * Bx - vex * Bz)) - central_difference_y(pre, hy))
+        temp3 = temp2 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - central_difference_z(pre, hz))
+
+        ! boundary points
+        call boundary(temp1)
+        call boundary(temp2)
+        call boundary(temp3)
+
+        ! update
+        vex = temp1
+        vey = temp2
+        vez = temp3
+
+        ! ion
+        ! inner points use RK4
+        ! vix
+        K1 = -tau * (vix * central_difference_x(vix, hx) + viy * central_difference_y(vix, hy) + viz * central_difference_z(vix, hz))
+        K2 = -tau * ((vix+K1/2.0d0) * central_difference_x(vix+K1/2.0d0, hx) + viy * central_difference_y(vix+K1/2.0d0, hy) + viz * central_difference_z(vix+K1/2.0d0, hz))
+        K3 = -tau * ((vix+K2/2.0d0) * central_difference_x(vix+K2/2.0d0, hx) + viy * central_difference_y(vix+K2/2.0d0, hy) + viz * central_difference_z(vix+K2/2.0d0, hz))
+        K4 = -tau * ((vix+K3) * central_difference_x(vix+K3, hx) + viy * central_difference_y(vix+K3, hy) + viz * central_difference_z(vix+K3, hz))
+        temp1 = vix + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+
+        ! viy
+        K1 = -tau * (vix * central_difference_x(viy, hx) + viy * central_difference_y(viy, hy) + viz * central_difference_z(viy, hz))
+        K2 = -tau * (vix * central_difference_x(viy+K1/2.0d0, hx) + (viy+K1/2.0d0) * central_difference_y(viy+K1/2.0d0, hy) + viz * central_difference_z(viy+K1/2.0d0, hz))
+        K3 = -tau * (vix * central_difference_x(viy+K2/2.0d0, hx) + (viy+K2/2.0d0) * central_difference_y(viy+K2/2.0d0, hy) + viz * central_difference_z(viy+K2/2.0d0, hz))
+        K4 = -tau * (vix * central_difference_x(viy+K3, hx) + (viy+K3) * central_difference_y(viy+K3, hy) + viz * central_difference_z(viy+K3, hz))
+        temp2 = viy + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+        
+        ! viz
+        K1 = -tau * (vix * central_difference_x(viz, hx) + viy * central_difference_y(viz, hy) + viz * central_difference_z(viz, hz))
+        K2 = -tau * (vix * central_difference_x(viz+K1/2.0d0, hx) + viy * central_difference_y(viz+K1/2.0d0, hy) + (viz+K1/2.0d0) * central_difference_z(viz+K1/2.0d0, hz))
+        K3 = -tau * (vix * central_difference_x(viz+K2/2.0d0, hx) + viy * central_difference_y(viz+K2/2.0d0, hy) + (viz+K2/2.0d0) * central_difference_z(viz+K2/2.0d0, hz))
+        K4 = -tau * (vix * central_difference_x(viz+K3, hx) + viy * central_difference_y(viz+K3, hy) + (viz+K3) * central_difference_z(viz+K3, hz))
+        temp3 = viz + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+        
+
+        ! subouter points use Euler
+        call momentum_subouter(temp1, temp2, temp3, 2)
+
+        ! add other terms
+        temp1 = temp1 + tau / (mi * ni) * (ni * qi * (Ex + (viy * Bz - viz * By)) - central_difference_x(pri, hx))
+        temp2 = temp2 + tau / (mi * ni) * (ni * qi * (Ey + (viz * Bx - vix * Bz)) - central_difference_y(pri, hy))
+        temp3 = temp3 + tau / (mi * ni) * (ni * qi * (Ez + (vix * By - viy * Bx)) - central_difference_z(pri, hz))
+
+        ! boundary points
+        call boundary(temp1)
+        call boundary(temp2)
+        call boundary(temp3)
+
+        ! update
+        vix = temp1
+        viy = temp2
+        viz = temp3
+
+        deallocate(temp1, temp2, temp3)
+        deallocate(K1, K2, K3, K4)
+    end subroutine
+
+    subroutine momentum_subouter(vx, vy, vz, species)
+        implicit none
+        real(kind=8) :: vx(:,:,:), vy(:,:,:), vz(:,:,:)
+        integer :: species  ! 1 for electron, 2 for ion
+        real(kind=8), allocatable :: cdiffxx(:,:,:), cdiffxy(:,:,:), cdiffxz(:,:,:)
+        real(kind=8), allocatable :: cdiffyx(:,:,:), cdiffyy(:,:,:), cdiffyz(:,:,:)
+        real(kind=8), allocatable :: cdiffzx(:,:,:), cdiffzy(:,:,:), cdiffzz(:,:,:)
+        integer :: size1, size2, size3
+
+        allocate(cdiffxx(Nx,Ny,Nz), cdiffxy(Nx,Ny,Nz), cdiffxz(Nx,Ny,Nz))
+        allocate(cdiffyx(Nx,Ny,Nz), cdiffyy(Nx,Ny,Nz), cdiffyz(Nx,Ny,Nz))
+        allocate(cdiffzx(Nx,Ny,Nz), cdiffzy(Nx,Ny,Nz), cdiffzz(Nx,Ny,Nz))
+        size1 = size(vx, 1)
+        size2 = size(vx, 2)
+        size3 = size(vx, 3)
+
+        if (species==1) then    ! electron
+            cdiffxx = central_difference_x(vex, hx)
+            cdiffxy = central_difference_x(vey, hx)
+            cdiffxz = central_difference_x(vez, hx)
+            cdiffyx = central_difference_y(vex, hy)
+            cdiffyy = central_difference_y(vey, hy)
+            cdiffyz = central_difference_y(vez, hy)
+            cdiffzx = central_difference_z(vex, hz)
+            cdiffzy = central_difference_z(vey, hz)
+            cdiffzz = central_difference_z(vez, hz)
+
+            vx(2:4,:,:) = vex(2:4,:,:) - tau * (vex(2:4,:,:)*cdiffxx(2:4,:,:)+ vey(2:4,:,:)*cdiffyx(2:4,:,:) + vez(2:4,:,:)*cdiffzx(2:4,:,:))
+            vx(Nx-3:Nx-1,:,:) = vex(Nx-3:Nx-1,:,:) - tau * (vex(Nx-3:Nx-1,:,:)*cdiffxx(Nx-3:Nx-1,:,:)+ vey(Nx-3:Nx-1,:,:)*cdiffyx(Nx-3:Nx-1,:,:) + vez(Nx-3:Nx-1,:,:)*cdiffzx(Nx-3:Nx-1,:,:))
+            vx(:,2:4,:) = vex(:,2:4,:) - tau * (vex(:,2:4,:)*cdiffxx(:,2:4,:)+ vey(:,2:4,:)*cdiffyx(:,2:4,:) + vez(:,2:4,:)*cdiffzx(:,2:4,:))
+            vx(:,Ny-3:Ny-1,:) = vex(:,Ny-3:Ny-1,:) - tau * (vex(:,Ny-3:Ny-1,:)*cdiffxx(:,Ny-3:Ny-1,:)+ vey(:,Ny-3:Ny-1,:)*cdiffyx(:,Ny-3:Ny-1,:) + vez(:,Ny-3:Ny-1,:)*cdiffzx(:,Ny-3:Ny-1,:))
+            vx(:,:,2:4) = vex(:,:,2:4) - tau * (vex(:,:,2:4)*cdiffxx(:,:,2:4)+ vey(:,:,2:4)*cdiffyx(:,:,2:4) + vez(:,:,2:4)*cdiffzx(:,:,2:4))
+            vx(:,:,Nz-3:Nz-1) = vex(:,:,Nz-3:Nz-1) - tau * (vex(:,:,Nz-3:Nz-1)*cdiffxx(:,:,Nz-3:Nz-1)+ vey(:,:,Nz-3:Nz-1)*cdiffyx(:,:,Nz-3:Nz-1) + vez(:,:,Nz-3:Nz-1)*cdiffzx(:,:,Nz-3:Nz-1))
+            
+            vy(2:4,:,:) = vey(2:4,:,:) - tau * (vex(2:4,:,:)*cdiffxy(2:4,:,:)+ vey(2:4,:,:)*cdiffyy(2:4,:,:) + vez(2:4,:,:)*cdiffzy(2:4,:,:))
+            vy(Nx-3:Nx-1,:,:) = vey(Nx-3:Nx-1,:,:) - tau * (vex(Nx-3:Nx-1,:,:)*cdiffxy(Nx-3:Nx-1,:,:)+ vey(Nx-3:Nx-1,:,:)*cdiffyy(Nx-3:Nx-1,:,:) + vez(Nx-3:Nx-1,:,:)*cdiffzy(Nx-3:Nx-1,:,:))
+            vy(:,2:4,:) = vey(:,2:4,:) - tau * (vex(:,2:4,:)*cdiffxy(:,2:4,:)+ vey(:,2:4,:)*cdiffyy(:,2:4,:) + vez(:,2:4,:)*cdiffzy(:,2:4,:))
+            vy(:,Ny-3:Ny-1,:) = vey(:,Ny-3:Ny-1,:) - tau * (vex(:,Ny-3:Ny-1,:)*cdiffxy(:,Ny-3:Ny-1,:)+ vey(:,Ny-3:Ny-1,:)*cdiffyy(:,Ny-3:Ny-1,:) + vez(:,Ny-3:Ny-1,:)*cdiffzy(:,Ny-3:Ny-1,:))
+            vy(:,:,2:4) = vey(:,:,2:4) - tau * (vex(:,:,2:4)*cdiffxy(:,:,2:4)+ vey(:,:,2:4)*cdiffyy(:,:,2:4) + vez(:,:,2:4)*cdiffzy(:,:,2:4))
+            vy(:,:,Nz-3:Nz-1) = vey(:,:,Nz-3:Nz-1) - tau * (vex(:,:,Nz-3:Nz-1)*cdiffxy(:,:,Nz-3:Nz-1)+ vey(:,:,Nz-3:Nz-1)*cdiffyy(:,:,Nz-3:Nz-1) + vez(:,:,Nz-3:Nz-1)*cdiffzy(:,:,Nz-3:Nz-1))
+            
+            vz(2:4,:,:) = vez(2:4,:,:) - tau * (vex(2:4,:,:)*cdiffxz(2:4,:,:)+ vey(2:4,:,:)*cdiffyz(2:4,:,:) + vez(2:4,:,:)*cdiffzz(2:4,:,:))
+            vz(Nx-3:Nx-1,:,:) = vez(Nx-3:Nx-1,:,:) - tau * (vex(Nx-3:Nx-1,:,:)*cdiffxz(Nx-3:Nx-1,:,:)+ vey(Nx-3:Nx-1,:,:)*cdiffyz(Nx-3:Nx-1,:,:) + vez(Nx-3:Nx-1,:,:)*cdiffzz(Nx-3:Nx-1,:,:))
+            vz(:,2:4,:) = vez(:,2:4,:) - tau * (vex(:,2:4,:)*cdiffxz(:,2:4,:)+ vey(:,2:4,:)*cdiffyz(:,2:4,:) + vez(:,2:4,:)*cdiffzz(:,2:4,:))
+            vz(:,Ny-3:Ny-1,:) = vez(:,Ny-3:Ny-1,:) - tau * (vex(:,Ny-3:Ny-1,:)*cdiffxz(:,Ny-3:Ny-1,:)+ vey(:,Ny-3:Ny-1,:)*cdiffyz(:,Ny-3:Ny-1,:) + vez(:,Ny-3:Ny-1,:)*cdiffzz(:,Ny-3:Ny-1,:))
+            vz(:,:,2:4) = vez(:,:,2:4) - tau * (vex(:,:,2:4)*cdiffxz(:,:,2:4)+ vey(:,:,2:4)*cdiffyz(:,:,2:4) + vez(:,:,2:4)*cdiffzz(:,:,2:4))
+            vz(:,:,Nz-3:Nz-1) = vez(:,:,Nz-3:Nz-1) - tau * (vex(:,:,Nz-3:Nz-1)*cdiffxz(:,:,Nz-3:Nz-1)+ vey(:,:,Nz-3:Nz-1)*cdiffyz(:,:,Nz-3:Nz-1) + vez(:,:,Nz-3:Nz-1)*cdiffzz(:,:,Nz-3:Nz-1))
+   
+        else if (species==2) then   ! ion
+            cdiffxx = central_difference_x(vix, hx)
+            cdiffxy = central_difference_x(viy, hx)
+            cdiffxz = central_difference_x(viz, hx)
+            cdiffyx = central_difference_y(vix, hy)
+            cdiffyy = central_difference_y(viy, hy)
+            cdiffyz = central_difference_y(viz, hy)
+            cdiffzx = central_difference_z(vix, hz)
+            cdiffzy = central_difference_z(viy, hz)
+            cdiffzz = central_difference_z(viz, hz)
+
+            vx(2:4,:,:) = vix(2:4,:,:) - tau * (vix(2:4,:,:)*cdiffxx(2:4,:,:)+ viy(2:4,:,:)*cdiffyx(2:4,:,:) + viz(2:4,:,:)*cdiffzx(2:4,:,:))
+            vx(Nx-3:Nx-1,:,:) = vix(Nx-3:Nx-1,:,:) - tau * (vix(Nx-3:Nx-1,:,:)*cdiffxx(Nx-3:Nx-1,:,:)+ viy(Nx-3:Nx-1,:,:)*cdiffyx(Nx-3:Nx-1,:,:) + viz(Nx-3:Nx-1,:,:)*cdiffzx(Nx-3:Nx-1,:,:))
+            vx(:,2:4,:) = vix(:,2:4,:) - tau * (vix(:,2:4,:)*cdiffxx(:,2:4,:)+ viy(:,2:4,:)*cdiffyx(:,2:4,:) + viz(:,2:4,:)*cdiffzx(:,2:4,:))
+            vx(:,Ny-3:Ny-1,:) = vix(:,Ny-3:Ny-1,:) - tau * (vix(:,Ny-3:Ny-1,:)*cdiffxx(:,Ny-3:Ny-1,:)+ viy(:,Ny-3:Ny-1,:)*cdiffyx(:,Ny-3:Ny-1,:) + viz(:,Ny-3:Ny-1,:)*cdiffzx(:,Ny-3:Ny-1,:))
+            vx(:,:,2:4) = vix(:,:,2:4) - tau * (vix(:,:,2:4)*cdiffxx(:,:,2:4)+ viy(:,:,2:4)*cdiffyx(:,:,2:4) + viz(:,:,2:4)*cdiffzx(:,:,2:4))
+            vx(:,:,Nz-3:Nz-1) = vix(:,:,Nz-3:Nz-1) - tau * (vix(:,:,Nz-3:Nz-1)*cdiffxx(:,:,Nz-3:Nz-1)+ viy(:,:,Nz-3:Nz-1)*cdiffyx(:,:,Nz-3:Nz-1) + viz(:,:,Nz-3:Nz-1)*cdiffzx(:,:,Nz-3:Nz-1))
+            
+            vy(2:4,:,:) = viy(2:4,:,:) - tau * (vix(2:4,:,:)*cdiffxy(2:4,:,:)+ viy(2:4,:,:)*cdiffyy(2:4,:,:) + viz(2:4,:,:)*cdiffzy(2:4,:,:))
+            vy(Nx-3:Nx-1,:,:) = viy(Nx-3:Nx-1,:,:) - tau * (vix(Nx-3:Nx-1,:,:)*cdiffxy(Nx-3:Nx-1,:,:)+ viy(Nx-3:Nx-1,:,:)*cdiffyy(Nx-3:Nx-1,:,:) + viz(Nx-3:Nx-1,:,:)*cdiffzy(Nx-3:Nx-1,:,:))
+            vy(:,2:4,:) = viy(:,2:4,:) - tau * (vix(:,2:4,:)*cdiffxy(:,2:4,:)+ viy(:,2:4,:)*cdiffyy(:,2:4,:) + viz(:,2:4,:)*cdiffzy(:,2:4,:))
+            vy(:,Ny-3:Ny-1,:) = viy(:,Ny-3:Ny-1,:) - tau * (vix(:,Ny-3:Ny-1,:)*cdiffxy(:,Ny-3:Ny-1,:)+ viy(:,Ny-3:Ny-1,:)*cdiffyy(:,Ny-3:Ny-1,:) + viz(:,Ny-3:Ny-1,:)*cdiffzy(:,Ny-3:Ny-1,:))
+            vy(:,:,2:4) = viy(:,:,2:4) - tau * (vix(:,:,2:4)*cdiffxy(:,:,2:4)+ viy(:,:,2:4)*cdiffyy(:,:,2:4) + viz(:,:,2:4)*cdiffzy(:,:,2:4))
+            vy(:,:,Nz-3:Nz-1) = viy(:,:,Nz-3:Nz-1) - tau * (vix(:,:,Nz-3:Nz-1)*cdiffxy(:,:,Nz-3:Nz-1)+ viy(:,:,Nz-3:Nz-1)*cdiffyy(:,:,Nz-3:Nz-1) + viz(:,:,Nz-3:Nz-1)*cdiffzy(:,:,Nz-3:Nz-1))
+            
+            vz(2:4,:,:) = viz(2:4,:,:) - tau * (vix(2:4,:,:)*cdiffxz(2:4,:,:)+ viy(2:4,:,:)*cdiffyz(2:4,:,:) + viz(2:4,:,:)*cdiffzz(2:4,:,:))
+            vz(Nx-3:Nx-1,:,:) = viz(Nx-3:Nx-1,:,:) - tau * (vix(Nx-3:Nx-1,:,:)*cdiffxz(Nx-3:Nx-1,:,:)+ viy(Nx-3:Nx-1,:,:)*cdiffyz(Nx-3:Nx-1,:,:) + viz(Nx-3:Nx-1,:,:)*cdiffzz(Nx-3:Nx-1,:,:))
+            vz(:,2:4,:) = viz(:,2:4,:) - tau * (vix(:,2:4,:)*cdiffxz(:,2:4,:)+ viy(:,2:4,:)*cdiffyz(:,2:4,:) + viz(:,2:4,:)*cdiffzz(:,2:4,:))
+            vz(:,Ny-3:Ny-1,:) = viz(:,Ny-3:Ny-1,:) - tau * (vix(:,Ny-3:Ny-1,:)*cdiffxz(:,Ny-3:Ny-1,:)+ viy(:,Ny-3:Ny-1,:)*cdiffyz(:,Ny-3:Ny-1,:) + viz(:,Ny-3:Ny-1,:)*cdiffzz(:,Ny-3:Ny-1,:))
+            vz(:,:,2:4) = viz(:,:,2:4) - tau * (vix(:,:,2:4)*cdiffxz(:,:,2:4)+ viy(:,:,2:4)*cdiffyz(:,:,2:4) + viz(:,:,2:4)*cdiffzz(:,:,2:4))
+            vz(:,:,Nz-3:Nz-1) = viz(:,:,Nz-3:Nz-1) - tau * (vix(:,:,Nz-3:Nz-1)*cdiffxz(:,:,Nz-3:Nz-1)+ viy(:,:,Nz-3:Nz-1)*cdiffyz(:,:,Nz-3:Nz-1) + viz(:,:,Nz-3:Nz-1)*cdiffzz(:,:,Nz-3:Nz-1))
+
+        end if
+    end subroutine
+
+    subroutine EMField_eqution
+        implicit none
+
+        real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:), temp3(:,:,:)   ! for Magnetic field
+        real(kind=8), allocatable :: temp4(:,:,:), temp5(:,:,:), temp6(:,:,:)   ! for Electric field
+        
+        allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz), temp3(Nx,Ny,Nz))
+        allocate(temp4(Nx,Ny,Nz), temp5(Nx,Ny,Nz), temp6(Nx,Ny,Nz))
+
+        if (nstep==1) then
+            ! Euler scheme
+            temp1 = Bsx - tau * (central_difference_y(Esz,hy) - central_difference_z(Esy,hz))
+            temp2 = Bsy - tau * (central_difference_z(Esx,hz) - central_difference_x(Esz,hx))
+            temp3 = Bsz - tau * (central_difference_x(Esy,hx) - central_difference_y(Esx,hy))
+
+            temp4 = Esx + tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
+            temp5 = Esy + tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
+            temp6 = Esz + tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
+
+        else
+            ! leapfrog scheme
+            temp1 = Bsx_pre - 2.0d0 * tau * (central_difference_y(Esz,hy) - central_difference_z(Esy,hz))
+            temp2 = Bsy_pre - 2.0d0 * tau * (central_difference_z(Esx,hz) - central_difference_x(Esz,hx))
+            temp3 = Bsz_pre - 2.0d0 * tau * (central_difference_x(Esy,hx) - central_difference_y(Esx,hy))
+
+            temp4 = Esx_pre + 2.0d0 * tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
+            temp5 = Esy_pre + 2.0d0 * tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
+            temp6 = Esz_pre + 2.0d0 * tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
+        end if
+
+        call boundary(temp1)
+        call boundary(temp2)
+        call boundary(temp3)
+        call boundary(temp4)
+        call boundary(temp5)
+        call boundary(temp6)
+
+        ! update
+        Bsx_pre = Bsx
+        Bsy_pre = Bsy
+        Bsz_pre = Bsz
+
+        Esx_pre = Esx
+        Esy_pre = Esy
+        Esz_pre = Esz
+
+        Bsx = temp1
+        Bsy = temp2
+        Bsz = temp3
+
+        Esx = temp4
+        Esy = temp5
+        Esz = temp6
+
+        deallocate(temp1, temp2, temp3)
+        deallocate(temp4, temp5, temp6)
+
+    end subroutine
+
+    subroutine boundary(a)
+        ! use linear extrapolation
+        implicit none
+        real(kind=8), intent(inout) :: a(:,:,:)
+        integer :: size1, size2, size3
+
+        size1 = size(a, 1)
+        size2 = size(a, 2)
+        size3 = size(a, 3)
+
+        a(1,:,:) = 2.0d0 * a(2,:,:) - a(3,:,:)
+        a(size1,:,:) = 2.0d0 * a(size1-1,:,:) - a(size1-2,:,:)
+        a(:,1,:) = 2.0d0 * a(:,2,:) - a(:,3,:)
+        a(:,size2,:) = 2.0d0 * a(:,size2-1,:) - a(:,size2-2,:)
+        a(:,:,1) = 2.0d0 * a(:,:,2) - a(:,:,3)
+        a(:,:,size3) = 2.0d0 * a(:,:,size3-1) - a(:,:,size3-2)
+    end subroutine
+
+    subroutine check
+        ! check the divergence of B
+        implicit none
+
+        divB = central_difference_x(Bsx,hx) + central_difference_y(Bsy,hy) + central_difference_z(Bsz,hz)
+
+        divB_max = maxval(maxval(maxval(divB,3),2),1)
+
+        print *, divB_max
+    end subroutine
+
 
     subroutine facur
         implicit none
@@ -597,20 +707,22 @@ contains
 
         implicit none
 
-        real(kind=8) ::  temp(mx,my,mz), dtmin, dxyz, test
-        integer :: jx, jy, jz, m, k
+        real(kind=8), allocatable ::  temp1(:,:,:), temp2(:,:,:)
+        real(kind=8) :: dxyz, dt1, dt2
 
+        allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz))
         !call foreta(time, 1)
-        call pressure(x, 1)
-        dtmin = 1000.
-        dxyz = .5*dx*dy*dz/sqrt((dx**2*dy**2 + dy**2*dz**2 + dx**2*dz**2))
+        call pressure
 
-        temp = dxyz/( sqrt(x(:,:,:,2)*x(:,:,:,2)+x(:,:,:,3)*x(:,:,:,3)+x(:,:,:,4)*x(:,:,:,4))/x(:,:,:,1) &
-                + sqrt((x(:,:,:,5)*x(:,:,:,5)+x(:,:,:,6)*x(:,:,:,6)+x(:,:,:,7)*x(:,:,:,7)+gamma*pr)/x(:,:,:,1)) )
-        
-        dtmin = minval(minval(minval(temp,3),2),1)
+        dxyz = .5*hx*hy*hz/sqrt((hx**2*hy**2 + hy**2*hz**2 + hx**2*hz**2))
 
-        dt = 0.5*dtmin
+        temp1 = dxyz / (sqrt(vex**2 + vey**2 + vez**2) + sqrt(Bx**2 + By**2 + Bz**2 + gamma*pre)/(me*ne))
+        temp2 = dxyz / (sqrt(vix**2 + viy**2 + viz**2) + sqrt(Bx**2 + By**2 + Bz**2 + gamma*pri)/(mi*ni))
+
+        dt1 = minval(minval(minval(temp1,3),2),1)
+        dt2 = minval(minval(minval(temp2,3),2),1)
+
+        tau = 0.5*min(dt1, dt2)
         return
     end subroutine
 
@@ -990,169 +1102,14 @@ contains
         return
     end subroutine
 
-    subroutine current(x, mm)
+    subroutine current
+        ! calculate the current
         implicit none
 
-        real(kind=8) :: x(mx, my, mz, 8)
-        integer :: mm
-
-        integer :: m, jx, jy, jz
-
-        if (mm .eq. 1) then
-            do jz = 2, nz
-            do jy = 2, ny
-            do jx = 2, nx
-                w0(jx, jy, jz, 1) = .5*(x(jx, jy + 1, jz, 7) - x(jx, jy - 1, jz, 7))/dy &
-                                    - .5*(x(jx, jy, jz + 1, 6) - x(jx, jy, jz - 1, 6))/dz
-                w0(jx, jy, jz, 2) = -.5*(x(jx + 1, jy, jz, 7) - x(jx - 1, jy, jz, 7))/dx &
-                                    + .5*(x(jx, jy, jz + 1, 5) - x(jx, jy, jz - 1, 5))/dz
-                w0(jx, jy, jz, 3) = .5*(x(jx + 1, jy, jz, 6) - x(jx - 1, jy, jz, 6))/dx &
-                                    - .5*(x(jx, jy + 1, jz, 5) - x(jx, jy - 1, jz, 5))/dy
-            end do
-            end do
-            end do
-            
-            ! boundary at jx=1,mx
-
-            do m = 1, 3
-            do jz = 2, nz
-            do jy = 2, ny
-                w0(1, jy, jz, m) = 2.*w0(2, jy, jz, m) - w0(3, jy, jz, m)
-                w0(mx, jy, jz, m) = 2.*w0(nx, jy, jz, m) - w0(nx - 1, jy, jz, m)
-            end do
-            end do
-            end do
-
-            if (halfx) then
-                do jz = 2, nz
-                do jy = 2, ny
-                    w0(mx, jy, jz, 1) = w0(nx - 1, my - jy + 1, jz, 1)
-                    w0(mx, jy, jz, 2) = w0(nx - 1, my - jy + 1, jz, 2)
-                    w0(mx, jy, jz, 3) = -w0(nx - 1, my - jy + 1, jz, 3)
-                end do
-                end do
-            end if
-
-            ! boundary at jy=1,my
-            if (periody) then
-                do m = 1, 3
-                do jz = 2, nz
-                do jx = 1, mx
-                    w0(jx, 1, jz, m) = w0(jx, ny, jz, m)
-                    w0(jx, my, jz, m) = w0(jx, 2, jz, m)
-                end do
-                end do
-                end do
-            else
-                do m = 1, 3
-                do jz = 2, nz
-                do jx = 1, mx
-                    w0(jx, 1, jz, m) = w0(jx, 2, jz, m)
-                    w0(jx, my, jz, m) = w0(jx, ny, jz, m)
-                end do
-                end do
-                end do
-            end if
-
-            ! b.!. at jz=1
-            do m = 1, 3
-            do jy = 1, my
-            do jx = 1, mx
-                w0(jx, jy, 1, m) = w0(jx, jy, 2, m)
-                w0(jx, jy, mz, m) = w0(jx, jy, nz, m)
-            end do
-            end do
-            end do
-
-            ! b.!. at jz=mz
-            if (halfz) then
-                do jy = 1, my
-                do jx = 1, mx
-                    w0(jx, jy, mz, 1) = w0(jx, jy, nz - 1, 1)
-                    w0(jx, jy, mz, 2) = w0(jx, jy, nz - 1, 2)
-                    w0(jx, jy, mz, 3) = -w0(jx, jy, nz - 1, 3)
-                end do
-                end do
-            end if
-
-        else
-            do jz = 2, nz - 1
-            do jy = 2, ny - 1
-            do jx = 2, nx - 1
-                w0(jx, jy, jz, 1) = .5*(x(jx, jy + 1, jz, 7) - x(jx, jy - 1, jz, 7))/dy &
-                                    - .5*(x(jx, jy, jz + 1, 6) - x(jx, jy, jz - 1, 6))/dz
-                w0(jx, jy, jz, 2) = -.5*(x(jx + 1, jy, jz, 7) - x(jx - 1, jy, jz, 7))/dx &
-                                    + .5*(x(jx, jy, jz + 1, 5) - x(jx, jy, jz - 1, 5))/dz
-                w0(jx, jy, jz, 3) = .5*(x(jx + 1, jy, jz, 6) - x(jx - 1, jy, jz, 6))/dx &
-                                    - .5*(x(jx, jy + 1, jz, 5) - x(jx, jy - 1, jz, 5))/dy
-            end do
-            end do
-            end do
-
-            ! boundary at jx=1,nx
-            do m = 1, 3
-            do jz = 2, nz - 1
-            do jy = 2, ny - 1
-                w0(1, jy, jz, m) = w0(2, jy, jz, m)
-                w0(nx, jy, jz, m) = w0(nx - 1, jy, jz, m)
-            end do
-            end do
-            end do
-
-            if (halfx) then
-                do jz = 2, nz
-                do jy = 2, ny
-                    w0(nx, jy, jz, 1) = w0(nx - 1, ny - jy + 1, jz, 1)
-                    w0(nx, jy, jz, 2) = w0(nx - 1, ny - jy + 1, jz, 2)
-                    w0(nx, jy, jz, 3) = -w0(nx - 1, ny - jy + 1, jz, 3)
-                end do
-                end do
-            end if
-
-            ! boundary at jy=1,ny
-            if (periody) then
-                do m = 1, 3
-                do jz = 2, nz - 1
-                do jx = 1, nx
-                    w0(jx, 1, jz, m) = w0(jx, ny - 1, jz, m)
-                    w0(jx, ny, jz, m) = w0(jx, 2, jz, m)
-                end do
-                end do
-                end do
-            else
-                do m = 1, 3
-                do jz = 2, nz - 1
-                do jx = 1, nx
-                    w0(jx, 1, jz, m) = w0(jx, 2, jz, m)
-                    w0(jx, ny, jz, m) = w0(jx, ny - 1, jz, m)
-                end do
-                end do
-                end do
-            end if
-
-            do m = 1, 3
-            do jy = 1, ny
-            do jx = 1, nx
-                w0(jx, jy, 1, m) = w0(jx, jy, 2, m)
-                w0(jx, jy, nz, m) = w0(jx, jy, nz - 1, m)
-            end do
-            end do
-            end do
-
-            ! b.!. at jz=nz
-            if (halfz) then
-                do jy = 1, ny
-                do jx = 1, nx
-                    w0(jx, jy, nz, 1) = w0(jx, jy, nz - 1, 1)
-                    w0(jx, jy, nz, 2) = w0(jx, jy, nz - 1, 2)
-                    w0(jx, jy, nz, 3) = -w0(jx, jy, nz - 1, 3)
-                end do
-                end do
-            end if
-
-        end if
-
-        return
+        jx = const1 * (ne*qe*vex + ni*qi*vix)
+        jy = const1 * (ne*qe*vey + ni*qi*viy)
+        jz = const1 * (ne*qe*vez + ni*qi*viz)
+        
     end subroutine
 
     subroutine vorticity(x)
@@ -1330,45 +1287,28 @@ contains
         return
     end subroutine
 
-    subroutine gridpnt
+    subroutine grid
 
         implicit none
 
-        integer :: jx, jy, jz, m
+        integer :: jx, jy, jz
 
-        nnxh = (mx + 1)/2
-        nnx = 2*(nnxh - 1)
-        nnxq = nnxh/2
-        nnyh = (my + 1)/2
-        nny = 2*(nnyh - 1)
-        nnyq = nnyh/2
-        nnzh = (mz + 1)/2
-        nnz = 2*(nnzh - 1)
-        nnzq = nnzh/2
+        hx = (xmax - xmin)/(Nx-1)
+        hy = (ymax - ymin)/(Ny-1)
+        hz = (zmax - zmin)/(Nz-1)
 
-        dx = (xmax - xmin)/float(nnx)
-
-        do jx = 1, mx
-            xx(jx) = xmin + (jx - 1)*dx
+        do jx = 1, Nx
+            x(jx) = xmin + (jx - 1)*hx
         end do
 
-        dy = (ymax - ymin)/float(nny)
-
-        do jy = 1, my
-            yy(jy) = ymin + (jy - 1)*dy
+        do jy = 1, Ny
+            y(jy) = ymin + (jy - 1)*hy
         end do
 
-        dz = (zmax - zmin)/float(nnz)
-
-        do jz = 1, mz
-            zz(jz) = zmin + (jz - 1)*dz
+        do jz = 1, Nz
+            z(jz) = zmin + (jz - 1)*hz
         end do
 
-        open (unit=11, file='grid.dat', status='unknown', form='formatted')
-        write (11, 99) (xx(jx), jx=1, mx), (zz(jz), jz=1, mz)
-99      format(5(1x, e10.4))
-
-        return
     end subroutine
 
     subroutine smthxyz(x, weight, num)
@@ -1597,45 +1537,12 @@ contains
         return
     end subroutine
 
-    subroutine pressure(x, mm)
-
+    subroutine pressure
+        ! calculate the pressure of electron and ion
         implicit none
 
-        real(kind=8) :: x(mx, my, mz, 8)
-        integer :: mm
-
-        real(kind=8) :: rv2, b2
-        integer :: jx, jy, jz, m
-
-        if (mm .eq. 1) then
-            do jz = 1, mz
-            do jy = 1, my
-            do jx = 1, mx
-                rv2 = (x(jx, jy, jz, 2)**2 + x(jx, jy, jz, 3)**2 + x(jx, jy, jz, 4)**2) &
-                      /x(jx, jy, jz, 1)
-                b2 = x(jx, jy, jz, 5)**2 + x(jx, jy, jz, 6)**2 + x(jx, jy, jz, 7)**2
-                pr(jx, jy, jz) = (gamma - 1.)*(x(jx, jy, jz, 8) - .5*rv2 - .5*b2)
-            end do
-            end do
-            end do
-
-        else
-            do jz = 1, nz
-            do jy = 1, ny
-            do jx = 1, nx
-                rv2 = (x(jx, jy, jz, 2)**2 + x(jx, jy, jz, 3)**2 + x(jx, jy, jz, 4)**2) &
-                      /x(jx, jy, jz, 1)
-                b2 = x(jx, jy, jz, 5)**2 + x(jx, jy, jz, 6)**2 + x(jx, jy, jz, 7)**2
-                pr(jx, jy, jz) = (gamma - 1.)*(x(jx, jy, jz, 8) - .5*rv2 - .5*b2)
-            end do
-            end do
-            end do
-
-        end if
-
-        call positive(pr, 1.d-5)
-
-        return
+        pre = ne * Te
+        pri = ni * Ti
     end subroutine
 
     subroutine positive(fn, c)
@@ -1669,97 +1576,11 @@ contains
         return
     end subroutine
 
-    subroutine foreta(t, mm)
-        !t seems not been used
-
+    subroutine abnormal_resistance
         implicit none
 
-        real(kind=8) :: t
-        integer :: mm
+        if(.not. is_abnormal_resistance) return
 
-        real(kind=8) :: etam(my), etac, etal, etab, xlen, xtrig, ztrig, awx, awz, etax, etaz, alpha0
-        integer :: jx, jy, jz
-
-        if(.not. is_foreta) return
-
-        etac = 0.5
-
-        !cjx  attentiion
-        etal = 0.000
-        etab = 0.00005
-        alpha0 = 2.0
-        !cjx  attentiion
-        xlen = 15.0
-        xtrig = 0.0
-        !cjx  attentiion
-        ztrig = 0.0
-        !cjx  attentiion
-        awx = aw
-        awz = 2.*awx
-
-        if (mm .eq. 1) then
-            do jy = 1, my
-                if (abs(yy(jy)) .le. xlen) then
-                    etam(jy) = 1.
-                else
-                    etam(jy) = (1.-tanh(abs(yy(jy)) - xlen)**2)
-                end if
-            end do
-
-            do jz = 1, mz
-            do jy = 1, my
-            do jx = 1, mx
-                ! nonlinear resistivity
-                !
-                ! localized resistivity perturbation
-                if (abs(xx(jx) - xtrig) .le. 0.5) then
-                    etax = 1.0
-                else
-                    etax = 1.-tanh((xx(jx) - xtrig)/awx)**2
-                end if
-
-                if (abs(abs(zz(jz)) - ztrig) .le. 1.) then
-                    etaz = 1.0
-                else
-                    etaz = 1.-tanh((abs(zz(jz)) - ztrig)/awz)**2
-                end if
-
-                etaf(jx, jy, jz) = etab + etam(jy)*etal*etax*etaz
-            end do
-            end do
-            end do
-        else
-            do jy = 1, ny
-                if (abs(yy(jy) + dy/2.) .le. xlen) then
-                    etam(jy) = 1.
-                else
-                    etam(jy) = (1.-tanh(abs(yy(jy) + dy/2.) - xlen)**2)
-                end if
-            end do
-
-            do jz = 1, nz
-            do jy = 1, ny
-            do jx = 1, nx
-                ! localized resistivity perturbation
-                if (abs(xx(jx) + dx/2.-xtrig) .le. 0.5) then
-                    etax = 1.0
-                else
-                    etax = 1.-tanh((xx(jx) + dx/2.-xtrig)/awx)**2
-                end if
-
-                if (abs(abs(zz(jz) + dz/2.) - ztrig) .le. 1.) then
-                    etaz = 1.0
-                else
-                    etaz = 1.-tanh((zz(jz) + dz/2.-ztrig)/awz)**2
-                end if
-
-                etaf(jx, jy, jz) = etab + etam(jy)*etal*etax*etaz
-            end do
-            end do
-            end do
-        end if
-
-        return
     end subroutine
 
     !cyg---------------------------------------
@@ -1829,5 +1650,11 @@ contains
         return
     end subroutine
     !cyg-------------------------
+
+    
+        
+
+
+
 
 end module Custom_subroutines
