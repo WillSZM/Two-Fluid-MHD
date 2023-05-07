@@ -48,6 +48,8 @@ program main
         print *, 'nstep= ', nstep, ' ', 'time= ', time, '', 'dt=', tau
     end do
 
+    call record
+
     call destroy
 
     call system_clock(runtime_end)

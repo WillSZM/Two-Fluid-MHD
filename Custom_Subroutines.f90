@@ -7,6 +7,10 @@ contains
 
     subroutine initialize
         implicit none
+        real(kind=8) :: Lh = 1.0d0 ! Harris sheet half thickness
+        real(kind=8) :: Bh = -1.0d0 ! Harris sheet magnetic field
+        integer :: i
+
         ! constants and normalizing parameters
         v0 = x0 / t0
         E0 = m0 * v0 / (q0 * t0)
@@ -53,19 +57,18 @@ contains
         allocate(pre(Nx, Ny, Nz), pri(Nx, Ny, Nz), eta(Nx, Ny, Nz))
         allocate(divB(Nx,Ny,Nz))
 
-        ne = 1.d0
-        ni = 1.d0
+        do i = 1, Nx
+            ne(i,:,:) = 1.0d0/cosh(x(i)/Lh)**2
+            ni(i,:,:) = 1.0d0/cosh(x(i)/Lh)**2
+        end do
 
-        vex = 0.d0
-        vey = 0.d0
-        vez = 0.d0
-        vix = 0.d0
-        viy = 0.d0
-        viz = 0.d0
+        
 
         Bsx = 0.d0
-        Bsy = 0.0d0
-        Bsz = 0.d0
+        Bsy = 0.d0
+        do i = 1, Nx
+            Bsz(i,:,:) = Bh*tanh(x(i)/Lh)
+        end do
         Bex = 0.d0
         Bey = 0.d0
         Bez = 0.d0
@@ -90,12 +93,22 @@ contains
         Ey = Esy + Eey
         Ez = Esz + Eez
 
-        Te = 1.d0
-        Ti = 1.d0
+        vex = 0.d0
+        vey = -2.0d0*Te/(qe*Bh*Lh)
+        vez = 0.d0
+        vix = 0.d0
+        viy = -2.0d0*Ti/(qi*Bh*Lh)
+        viz = 0.d0
+
+        pre = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
+        pri = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
+
+        Te = pre/ne
+        Ti = pri/ni
+        
         eta = 0.d0
 
         call current
-        call pressure
 
         divB = 0.d0
         gamma = 5.0d0/3.0d0
@@ -602,7 +615,7 @@ contains
 
         divB_max = maxval(maxval(maxval(divB,3),2),1)
 
-        print *, divB_max
+        print *, "divB= ", divB_max
     end subroutine
 
     subroutine setdt
@@ -625,7 +638,8 @@ contains
         dt2 = minval(minval(minval(temp2,3),2),1)
 
         tau = 0.5*min(dt1, dt2)
-        return
+        
+        deallocate(temp1, temp2)
     end subroutine
 
     subroutine current
@@ -667,12 +681,12 @@ contains
     subroutine smooth(a, weight)
 
         implicit none
-        real(kind=8), allocatable ::  a(:,:,:)
+        real(kind=8) ::  a(:,:,:)
         real(kind=8) :: weight   ! weight of the central element
 
         real(kind=8), allocatable :: average(:,:,:)
 
-        allocate(a(Nx,Ny,Nz),average(Nx,Ny,Nz))
+        allocate(average(Nx,Ny,Nz))
 
         average(2:Nx-1,2:Ny-1,2:Nz-1) = (a(3:Nx,:,:) + a(1:Nx-2,:,:) + a(:,3:Ny,:) + a(:,1:Ny-2,:) &
                                          + a(:,:,3:Nz) + a(:,:,1:Nz-2)) / 6.0d0
@@ -680,6 +694,8 @@ contains
 
     
         call boundary(a)
+
+        deallocate(average)
 
     end subroutine
 
@@ -710,13 +726,13 @@ contains
 
         vshear = 0.1d0  ! the velocity of the shear flow
         tshear_start = 0.0d0
-        tshear_end = 100.0d0
+        tshear_end = 10.0d0
 
         xs = 0.0d0  ! the central position of the shear flow
         zs = 0.0d0  ! the central position of the shear flow
         lsx = 1.0d0 ! the characteristic length of the shear flow
         lsz = 1.0d0 ! the characteristic length of the shear flow
-        tao_s = 10.0d0  ! the characteristic time of the shear flow
+        tao_s = 0.1d0  ! the characteristic time of the shear flow
 
         if (time>tshear_start .and. time<tshear_end) then
             do k = 1, Nz
@@ -727,6 +743,29 @@ contains
             end do
         end if
 
+    end subroutine
+
+    subroutine record
+        ! record the data
+        implicit none
+
+        integer :: i, j, k
+        character(len=50) :: output, format1, format2
+
+        output = 'data_set.dat'
+
+        open(unit=101,file=output,status='unknown',form='formatted')
+        write(101,*)'TITLE=Two_Fluid_MHD'
+        write(101,*)'VARIABLES="x" "y" "z" "ne" "ni" "vex" "vey" "vez" "vix" "viy" "viz" &
+                                &"Bx" "By" "Bz" "Ex" "Ey" "Ez" "Te" "Ti" "pe" "pi" "jx" "jy" "jz" '
+        format1 = "('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')"
+        write(101,format1) Nx,Ny,Nz
+
+        format2 = "(24(1x,e11.4))"
+        write(101,format2) (((x(i),y(j),z(k),ne(i,j,k),ni(i,j,k),vex(i,j,k),vey(i,j,k),vez(i,j,k), &
+                        vix(i,j,k),viy(i,j,k),viz(i,j,k),Bx(i,j,k), By(i,j,k), Bz(i,j,k), &
+                        Ex(i,j,k), Ey(i,j,k), Ez(i,j,k), Te(i,j,k), Ti(i,j,k), pre(i,j,k), pri(i,j,k), &
+                        jx(i,j,k), jy(i,j,k), jz(i,j,k),i=1,Nx),j=1,Ny),k=1,Nz)
     end subroutine
 
     subroutine destroy
