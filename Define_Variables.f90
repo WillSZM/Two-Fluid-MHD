@@ -11,8 +11,8 @@ module define_variables
     real(kind=8), parameter :: t0=1.d0
     real(kind=8), parameter :: n0=1.d0
     real(kind=8) :: v0, E0, B0, pr0, Tem0, j0, const1, const2
-    real(kind=8) :: qe = -1.0d0, qi = 1.0d0
-    real(kind=8) :: me = 1.0d0, mi = 1864.0d0
+    real(kind=8) :: qe, qi
+    real(kind=8) :: me, mi
 
     
     ! grid and index
@@ -22,7 +22,7 @@ module define_variables
     real(kind=8), allocatable :: x(:), y(:), z(:)
 
     ! time and time step
-    integer :: nstep, nmax=100000
+    integer :: nstep, nmax
     real(kind=8) :: time, tau 
 
     ! physical parameter
@@ -37,7 +37,7 @@ module define_variables
     real(kind=8), allocatable :: Te(:,:,:), Ti(:,:,:)
     real(kind=8), allocatable :: pre(:,:,:), pri(:,:,:), eta(:,:,:)
     real(kind=8), allocatable :: divB(:,:,:)
-    real(kind=8) :: divB_max
+    real(kind=8) :: divB_max, gamma
 
     ! controling parameter
     integer :: cont

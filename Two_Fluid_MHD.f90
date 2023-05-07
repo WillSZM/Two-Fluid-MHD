@@ -25,13 +25,17 @@ program main
     !     rho, rho*vx, rho*vy, rho*vz, bx, by, bz and energy.
     !-----------------
     
-    ! usage : gfortran [-On] Define_variables.f90 Custom_functions.f90 Custom_subroutines.f90 MHD.f90 -o MHD
+    ! usage : gfortran [-On] Define_variables.f90 Custom_functions.f90 Custom_subroutines.f90 Two_Fluid_MHD.f90 -o MHD
     
     use define_variables
     use custom_functions
     use custom_subroutines
 
     implicit none
+
+    integer :: runtime_start, runtime_end
+
+    call system_clock(runtime_start)
 
     call initialize
 
@@ -40,22 +44,13 @@ program main
         call stepon
 
         nstep = nstep + 1
-        time = time + dt
-        write (*, *) nstep, ' ', 'time=', time, '', 'dt=', dt         !zxg
-        
-
-
-        !yg----------------
-        if ((time .gt. t0) .and. ((time - t0) .le. dt)) then
-            call incident_plasma(x, xi, time, t0, 0)
-        end if
-
-        if ((time .gt. t0) .and. ((time - t0) .gt. dt)) then
-            call incident_plasma(x, xi, time, t0, 1)
-        end if
-        !yg---------------
-
-        if (nstep .gt. nstop) exit
+        time = time + tau
+        print *, 'nstep= ', nstep, ' ', 'time= ', time, '', 'dt=', tau
     end do
+
+    call destroy
+
+    call system_clock(runtime_end)
+    print *, 'runtime= ', (runtime_end-runtime_start)/1000.0, 's'
 
 end program
