@@ -24,8 +24,11 @@ contains
         pr0 = m0 * n0 * v0**2
         Tem0 = m0 * v0**2
         j0 = B0 / (mu0 * x0)
+        eta0 = m0 / (q0**2 * n0 * t0)
+        R0 = eta0 * q0 * n0 * j0
         const1 = mu0 * x0**2 * n0 * q0**2 / m0   ! used in calculating current density j
         const2 = t0**2 / (mu0 * eps0 * x0**2)    ! used in calculating electric field E
+        const3 = R0 / (m0 * n0 * v0 / t0)   ! used in fraction term Re and Ri
         qe = -1.0d0
         qi = 1.0d0
         me = 1.0d0
@@ -40,8 +43,11 @@ contains
         print *, "pr0 = ", pr0
         print *, "Tem0 = ", Tem0
         print *, "j0 = ", j0
+        print *, "eta0 = ", eta0
+        print *, "R0 = ", R0
         print *, "const1 = ", const1
         print *, "const2 = ", const2
+        print *, "const3 = ", const3
 
         ! grid and index
         Nx=101
@@ -59,7 +65,7 @@ contains
         ! time and time step
         time = 0.0
         nstep = 0
-        nmax = 100
+        nmax = 1000
 
         ! physical parameter
         allocate(ne(Nx, Ny, Nz), ni(Nx, Ny, Nz))
@@ -123,7 +129,7 @@ contains
         viy = -2.0d0*Ti/(qi*Bh*Lh)
         viz = 0.d0
         
-        eta = 0.d0
+        eta = 0.0025d0
 
         call current
 
@@ -137,6 +143,8 @@ contains
 
     subroutine stepon
         implicit none
+
+        call shear_flow
 
         call continuity_equation
         call momentum_equation
@@ -318,6 +326,8 @@ contains
         allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz), temp3(Nx,Ny,Nz))
         allocate(K1(Nx,Ny,Nz), K2(Nx,Ny,Nz), K3(Nx,Ny,Nz), K4(Nx,Ny,Nz))
 
+        call fraction_term
+
         ! electron
         ! inner points use RK4
         ! vex
@@ -358,9 +368,9 @@ contains
         call momentum_subouter(temp1, temp2, temp3, 1)
 
         ! add other terms
-        temp1 = temp1 + tau / (me * ne) * (ne * qe * (Ex + (vey * Bz - vez * By)) - central_difference_x(pre, hx))
-        temp2 = temp2 + tau / (me * ne) * (ne * qe * (Ey + (vez * Bx - vex * Bz)) - central_difference_y(pre, hy))
-        temp3 = temp2 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - central_difference_z(pre, hz))
+        temp1 = temp1 + tau / (me * ne) * (ne * qe * (Ex + (vey * Bz - vez * By)) - central_difference_x(pre, hx) + const3 * Rex)
+        temp2 = temp2 + tau / (me * ne) * (ne * qe * (Ey + (vez * Bx - vex * Bz)) - central_difference_y(pre, hy) + const3 * Rey)
+        temp3 = temp2 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - central_difference_z(pre, hz) + const3 * Rez)
 
         ! boundary points
         call boundary(temp1)
@@ -412,9 +422,9 @@ contains
         call momentum_subouter(temp1, temp2, temp3, 2)
 
         ! add other terms
-        temp1 = temp1 + tau / (mi * ni) * (ni * qi * (Ex + (viy * Bz - viz * By)) - central_difference_x(pri, hx))
-        temp2 = temp2 + tau / (mi * ni) * (ni * qi * (Ey + (viz * Bx - vix * Bz)) - central_difference_y(pri, hy))
-        temp3 = temp3 + tau / (mi * ni) * (ni * qi * (Ez + (vix * By - viy * Bx)) - central_difference_z(pri, hz))
+        temp1 = temp1 + tau / (mi * ni) * (ni * qi * (Ex + (viy * Bz - viz * By)) - central_difference_x(pri, hx) + const3 * Rix)
+        temp2 = temp2 + tau / (mi * ni) * (ni * qi * (Ey + (viz * Bx - vix * Bz)) - central_difference_y(pri, hy) + const3 * Riy)
+        temp3 = temp3 + tau / (mi * ni) * (ni * qi * (Ez + (vix * By - viy * Bx)) - central_difference_z(pri, hz) + const3 * Riz)
 
         ! boundary points
         call boundary(temp1)
@@ -428,6 +438,18 @@ contains
 
         deallocate(temp1, temp2, temp3)
         deallocate(K1, K2, K3, K4)
+    end subroutine
+
+    subroutine fraction_term
+        implicit none
+
+        Rex = eta * (-qe) * ne * jx
+        Rey = eta * (-qe) * ne * jy
+        Rez = eta * (-qe) * ne * jz
+
+        Rix = -Rex
+        Riy = -Rey
+        Riz = -Rez
     end subroutine
 
     subroutine momentum_subouter(vx, vy, vz, species)
@@ -744,7 +766,7 @@ contains
         real(kind=8) :: xs, zs, lsx, lsz, tao_s
         integer :: i, k
 
-        vshear = 0.1d0  ! the velocity of the shear flow
+        vshear = 3.2d-3  ! the velocity of the shear flow
         tshear_start = 0.0d0
         tshear_end = 10.0d0
 
@@ -757,7 +779,9 @@ contains
         if (time>tshear_start .and. time<tshear_end) then
             do k = 1, Nz
                 do i = 1, Nx
-                    vey(i,:,k) = vey(i,:,k) + vshear * exp(-(((x(i) - xs)/lsx)**2  + ((z(k) - zs)/lsz)**2)) &
+                    vey(i,:,k) = vey(i,:,k) - vshear * exp(-(((x(i) - xs)/lsx)**2  + ((z(k) - zs)/lsz)**2)) &
+                                                 * (tanh((time+tau-tshear_start)/tao_s)-tanh((time-tshear_start)/tao_s))
+                    viy(i,:,k) = viy(i,:,k) + vshear * exp(-(((x(i) - xs)/lsx)**2  + ((z(k) - zs)/lsz)**2)) &
                                                  * (tanh((time+tau-tshear_start)/tao_s)-tanh((time-tshear_start)/tao_s))
                 end do
             end do

@@ -10,9 +10,10 @@ module define_variables
     real(kind=8) :: x0
     real(kind=8) :: t0
     real(kind=8) :: n0
-    real(kind=8) :: v0, E0, B0, pr0, Tem0, j0, const1, const2
+    real(kind=8) :: v0, E0, B0, pr0, Tem0, j0, R0, eta0
     real(kind=8) :: qe, qi
     real(kind=8) :: me, mi
+    real(kind=8) :: const1, const2, const3
 
     
     ! grid and index
@@ -36,6 +37,7 @@ module define_variables
     real(kind=8), allocatable :: jx(:,:,:), jy(:,:,:), jz(:,:,:)
     real(kind=8), allocatable :: Te(:,:,:), Ti(:,:,:)
     real(kind=8), allocatable :: pre(:,:,:), pri(:,:,:), eta(:,:,:)
+    real(kind=8), allocatable :: Rex(:,:,:), Rey(:,:,:), Rez(:,:,:), Rix(:,:,:), Riy(:,:,:), Riz(:,:,:)
     real(kind=8), allocatable :: divB(:,:,:)
     real(kind=8) :: divB_max, gamma
 

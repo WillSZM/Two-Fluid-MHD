@@ -3,26 +3,36 @@ module custom_functions
 
 contains
 
-    character*3 function cn(n)
-        !-----assume that n is no greater than 999
+    character*6 function cn(n)
+        !-----assume that n is no greater than 999999
         !
         !
         !-----separate the digits
         implicit none
-        integer :: n, n1, n2, n3
+        integer :: n, n1, n2, n3, n4, n5, n6
 
-        n1 = n/100
-        n2 = (n - 100*n1)/10
-        n3 = n - 100*n1 - 10*n2
+        n1 = n/100000
+        n2 = (n - 100000*n1)/10000
+        n3 = (n - 100000*n1 - 10000*n2)/1000
+        n4 = (n - 100000*n1 - 10000*n2 - 1000*n3)/100
+        n5 = (n - 100000*n1 - 10000*n2 - 1000*n3 - 100*n4)/10
+        n6 = n - 100000*n1 - 10000*n2 - 1000*n3 - 100*n4 - 10*n5
 
         !-----stick together cn using char function
 
         n1 = n1 + 48
         n2 = n2 + 48
         n3 = n3 + 48
+        n4 = n4 + 48
+        n5 = n5 + 48
+        n6 = n6 + 48
+
         cn(1:1) = char(n1)
         cn(2:2) = char(n2)
         cn(3:3) = char(n3)
+        cn(4:4) = char(n4)
+        cn(5:5) = char(n5)
+        cn(6:6) = char(n6)
 
         return
     end function
