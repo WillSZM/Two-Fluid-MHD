@@ -109,12 +109,7 @@ contains
         Esy_pre = 0.d0
         Esz_pre = 0.d0
 
-        Bx = Bsx + Bex
-        By = Bsy + Bey
-        Bz = Bsz + Bez
-        Ex = Esx + Eex
-        Ey = Esy + Eey
-        Ez = Esz + Eez
+        call totel_EMfield
 
         pre = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
         pri = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
@@ -129,7 +124,7 @@ contains
         viy = -2.0d0*Ti/(qi*Bh*Lh)
         viz = 0.d0
         
-        eta = 0.0025d0
+        eta = 0.0d0
 
         call current
 
@@ -144,12 +139,14 @@ contains
     subroutine stepon
         implicit none
 
-        call shear_flow
+        !call shear_flow
 
         call continuity_equation
         call momentum_equation
         call energy_equation
         call EMField_eqution
+        
+        call totel_EMfield
 
         call abnormal_resistance
         call current
@@ -625,6 +622,18 @@ contains
 
         deallocate(temp1, temp2, temp3)
         deallocate(temp4, temp5, temp6)
+
+    end subroutine
+
+    subroutine totel_EMfield
+        implicit none
+
+        Bx = Bsx + Bex
+        By = Bsy + Bey
+        Bz = Bsz + Bez
+        Ex = Esx + Eex
+        Ey = Esy + Eey
+        Ez = Esz + Eez
 
     end subroutine
 
