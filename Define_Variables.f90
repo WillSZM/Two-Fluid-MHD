@@ -7,9 +7,9 @@ module define_variables
     real(kind=8), parameter :: m0=9.10938356d-31
     real(kind=8), parameter :: eps0=8.854187817d-12
     real(kind=8), parameter :: mu0=1.2566370614d-6
-    real(kind=8), parameter :: x0=1.d0
-    real(kind=8), parameter :: t0=1.d0
-    real(kind=8), parameter :: n0=1.d0
+    real(kind=8) :: x0
+    real(kind=8) :: t0
+    real(kind=8) :: n0
     real(kind=8) :: v0, E0, B0, pr0, Tem0, j0, const1, const2
     real(kind=8) :: qe, qi
     real(kind=8) :: me, mi

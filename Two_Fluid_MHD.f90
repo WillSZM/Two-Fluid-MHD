@@ -38,6 +38,7 @@ program main
     call system_clock(runtime_start)
 
     call initialize
+    call record
 
     do while (nstep < nmax)
         call setdt
@@ -46,6 +47,7 @@ program main
         nstep = nstep + 1
         time = time + tau
         print *, 'nstep= ', nstep, ' ', 'time= ', time, '', 'dt=', tau
+        print *, '\'
     end do
 
     call record

@@ -7,11 +7,17 @@ contains
 
     subroutine initialize
         implicit none
+
+        ! parameters of Harris sheet -------------------------------
         real(kind=8) :: Lh = 1.0d0 ! Harris sheet half thickness
         real(kind=8) :: Bh = -1.0d0 ! Harris sheet magnetic field
         integer :: i
+        ! --------------------------------------------------------
 
         ! constants and normalizing parameters
+        x0 = 3.4d5
+        t0 = 1.42344d-4
+        n0 = 5.0d6
         v0 = x0 / t0
         E0 = m0 * v0 / (q0 * t0)
         B0 = m0 / (q0 * t0)
@@ -25,7 +31,18 @@ contains
         me = 1.0d0
         mi = 1864.0d0
 
-        
+        print *, "x0 = ", x0
+        print *, "t0 = ", t0
+        print *, "n0 = ", n0
+        print *, "v0 = ", v0
+        print *, "E0 = ", E0
+        print *, "B0 = ", B0
+        print *, "pr0 = ", pr0
+        print *, "Tem0 = ", Tem0
+        print *, "j0 = ", j0
+        print *, "const1 = ", const1
+        print *, "const2 = ", const2
+
         ! grid and index
         Nx=101
         Ny=101
@@ -42,7 +59,7 @@ contains
         ! time and time step
         time = 0.0
         nstep = 0
-        nmax = 10
+        nmax = 100
 
         ! physical parameter
         allocate(ne(Nx, Ny, Nz), ni(Nx, Ny, Nz))
@@ -93,18 +110,18 @@ contains
         Ey = Esy + Eey
         Ez = Esz + Eez
 
+        pre = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
+        pri = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
+
+        Te = pre/ne
+        Ti = pri/ni
+
         vex = 0.d0
         vey = -2.0d0*Te/(qe*Bh*Lh)
         vez = 0.d0
         vix = 0.d0
         viy = -2.0d0*Ti/(qi*Bh*Lh)
         viz = 0.d0
-
-        pre = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
-        pri = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
-
-        Te = pre/ne
-        Ti = pri/ni
         
         eta = 0.d0
 
@@ -631,13 +648,16 @@ contains
 
         dxyz = .5*hx*hy*hz/sqrt((hx**2*hy**2 + hy**2*hz**2 + hx**2*hz**2))
 
-        temp1 = dxyz / (sqrt(vex**2 + vey**2 + vez**2) + sqrt(Bx**2 + By**2 + Bz**2 + gamma*pre)/(me*ne))
-        temp2 = dxyz / (sqrt(vix**2 + viy**2 + viz**2) + sqrt(Bx**2 + By**2 + Bz**2 + gamma*pri)/(mi*ni))
+        temp1 = dxyz / (sqrt(vex**2 + vey**2 + vez**2) & 
+                        + sqrt((B0**2/(2*mu0)*(Bx**2 + By**2 + Bz**2) + gamma*pr0*pre)/(m0*n0*me*ne))/v0)
+        temp2 = dxyz / (sqrt(vix**2 + viy**2 + viz**2) & 
+                        + sqrt((B0**2/(2*mu0)*(Bx**2 + By**2 + Bz**2) + gamma*pr0*pri)/(m0*n0*mi*ni))/v0)
 
         dt1 = minval(minval(minval(temp1,3),2),1)
         dt2 = minval(minval(minval(temp2,3),2),1)
 
-        tau = 0.5*min(dt1, dt2)
+        !tau = 0.5*min(dt1, dt2)
+        tau = 0.01d0
         
         deallocate(temp1, temp2)
     end subroutine
@@ -752,7 +772,7 @@ contains
         integer :: i, j, k
         character(len=50) :: output, format1, format2
 
-        output = 'data_set.dat'
+        output = 'data_set_' // cn(nstep) // '.dat'
 
         open(unit=101,file=output,status='unknown',form='formatted')
         write(101,*)'TITLE=Two_Fluid_MHD'
