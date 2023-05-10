@@ -37,7 +37,7 @@ program main
 
     call system_clock(runtime_start)
 
-    call initialize
+    call initialize_Harris_sheet
     call record
 
     do while (nstep < nmax)
@@ -47,7 +47,12 @@ program main
         nstep = nstep + 1
         time = time + tau
         print *, 'nstep= ', nstep, ' ', 'time= ', time, '', 'dt=', tau
-        print *, '\'
+        print *, ' '
+
+        if (mod(nstep, nout) == 0) then
+            call record
+        end if
+
     end do
 
     call record

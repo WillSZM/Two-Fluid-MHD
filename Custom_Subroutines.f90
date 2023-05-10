@@ -8,6 +8,132 @@ contains
     subroutine initialize
         implicit none
 
+        integer :: i
+        real(kind=8) :: Bh = -1.0d0 ! Harris sheet magnetic field
+
+        ! constants and normalizing parameters
+        x0 = 3.4d5
+        t0 = 1.42344d-4
+        n0 = 5.0d6
+        v0 = x0 / t0
+        E0 = m0 * v0 / (q0 * t0)
+        B0 = m0 / (q0 * t0)
+        pr0 = m0 * n0 * v0**2
+        Tem0 = m0 * v0**2
+        j0 = B0 / (mu0 * x0)
+        eta0 = m0 / (q0**2 * n0 * t0)
+        R0 = eta0 * q0 * n0 * j0
+        const1 = mu0 * x0**2 * n0 * q0**2 / m0   ! used in calculating current density j
+        const2 = t0**2 / (mu0 * eps0 * x0**2)    ! used in calculating electric field E
+        const3 = R0 / (m0 * n0 * v0 / t0)   ! used in fraction term Re and Ri
+        qe = -1.0d0
+        qi = 1.0d0
+        me = 1.0d0
+        mi = 1864.0d0
+
+        print *, "x0 = ", x0
+        print *, "t0 = ", t0
+        print *, "n0 = ", n0
+        print *, "v0 = ", v0
+        print *, "E0 = ", E0
+        print *, "B0 = ", B0
+        print *, "pr0 = ", pr0
+        print *, "Tem0 = ", Tem0
+        print *, "j0 = ", j0
+        print *, "eta0 = ", eta0
+        print *, "R0 = ", R0
+        print *, "const1 = ", const1
+        print *, "const2 = ", const2
+        print *, "const3 = ", const3
+
+        ! grid and index
+        Nx=101
+        Ny=101
+        Nz=101
+        xmin = -15.d0
+        xmax = 15.d0
+        ymin = -50.d0
+        ymax = 50.d0
+        zmin = -50.d0
+        zmax = 50.d0
+        
+        call grid
+
+        ! time and time step
+        time = 0.0
+        nstep = 0
+        nmax = 10
+        nout = 1    ! output frequency
+
+        ! physical parameter
+        allocate(ne(Nx, Ny, Nz), ni(Nx, Ny, Nz))
+        allocate(vex(Nx, Ny, Nz), vey(Nx, Ny, Nz), vez(Nx, Ny, Nz), vix(Nx, Ny, Nz), viy(Nx, Ny, Nz), viz(Nx, Ny, Nz))
+        allocate(Bsx(Nx, Ny, Nz), Bsy(Nx, Ny, Nz), Bsz(Nx, Ny, Nz), Bex(Nx, Ny, Nz), Bey(Nx, Ny, Nz), Bez(Nx, Ny, Nz))
+        allocate(Esx(Nx, Ny, Nz), Esy(Nx, Ny, Nz), Esz(Nx, Ny, Nz), Eex(Nx, Ny, Nz), Eey(Nx, Ny, Nz), Eez(Nx, Ny, Nz))
+        allocate(Bsx_pre(Nx,Ny,Nz), Bsy_pre(Nx,Ny,Nz), Bsz_pre(Nx,Ny,Nz))
+        allocate(Esx_pre(Nx,Ny,Nz), Esy_pre(Nx,Ny,Nz), Esz_pre(Nx,Ny,Nz))
+        allocate(Bx(Nx, Ny, Nz), By(Nx, Ny, Nz), Bz(Nx, Ny, Nz), Ex(Nx, Ny, Nz), Ey(Nx, Ny, Nz), Ez(Nx, Ny, Nz))
+        allocate(jx(Nx, Ny, Nz), jy(Nx, Ny, Nz), jz(Nx, Ny, Nz))
+        allocate(Te(Nx, Ny, Nz), Ti(Nx, Ny, Nz))
+        allocate(pre(Nx, Ny, Nz), pri(Nx, Ny, Nz), eta(Nx, Ny, Nz))
+        allocate(divB(Nx,Ny,Nz))
+
+        ne = 1.0d0
+        ni = 1.0d0
+
+        Bsx = 0.d0
+        Bsy = 0.d0
+        do i = 1, Nx
+            Bsz(i,:,:) = Bh*tanh(x(i))
+        end do
+        Bex = 0.d0
+        Bey = 0.d0
+        Bez = 0.d0
+
+        Esx = 0.d0
+        Esy = 0.d0
+        Esz = 0.d0
+        Eex = 0.d0
+        Eey = 0.d0
+        Eez = 0.d0
+
+        Bsx_pre = 0.d0
+        Bsy_pre = 0.d0
+        Bsz_pre = 0.d0
+        Esx_pre = 0.d0
+        Esy_pre = 0.d0
+        Esz_pre = 0.d0
+
+        call total_EMfield
+
+        pre = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
+        pri = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
+
+        Te = pre/ne
+        Ti = pri/ni
+
+        vex = 0.d0
+        vey = 0.0d0
+        vez = 0.d0
+        vix = 0.d0
+        viy = 0.0d0
+        viz = 0.d0
+        
+        eta = 0.0d0
+
+        call current
+
+        divB = 0.d0
+        gamma = 5.0d0/3.0d0
+
+        ! controling parameter
+        is_abnormal_resistance = .false.
+        
+    end subroutine
+
+    subroutine initialize_Harris_sheet
+        implicit none
+
         ! parameters of Harris sheet -------------------------------
         real(kind=8) :: Lh = 1.0d0 ! Harris sheet half thickness
         real(kind=8) :: Bh = -1.0d0 ! Harris sheet magnetic field
@@ -59,13 +185,14 @@ contains
         ymax = 50.d0
         zmin = -50.d0
         zmax = 50.d0
-        allocate(x(Nx), y(Ny), z(Nz))
+
         call grid
 
         ! time and time step
         time = 0.0
         nstep = 0
         nmax = 1000
+        nout = 100
 
         ! physical parameter
         allocate(ne(Nx, Ny, Nz), ni(Nx, Ny, Nz))
@@ -109,7 +236,7 @@ contains
         Esy_pre = 0.d0
         Esz_pre = 0.d0
 
-        call totel_EMfield
+        call total_EMfield
 
         pre = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
         pri = B0**2/(2.0d0*mu0)*(Bh**2-Bsz**2)/(2*pr0)
@@ -146,7 +273,7 @@ contains
         call energy_equation
         call EMField_eqution
         
-        call totel_EMfield
+        call total_EMfield
 
         call abnormal_resistance
         call current
@@ -210,7 +337,7 @@ contains
         K3 = -tau * (vix * central_difference_x(Ti+K2/2.0d0,hx) + viy * central_difference_y(Ti+K2/2.0d0,hy) & 
                         + viz * central_difference_z(Ti+K2/2.0d0,hz))
         K4 = -tau * (vix * central_difference_x(Ti+K3,hx) + viy * central_difference_y(Ti+K3,hy) & 
-                        + vez * central_difference_z(Te+K3,hz))
+                        + viz * central_difference_z(Ti+K3,hz))
         temp = Ti + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
 
         ! subouter points use Euler
@@ -238,8 +365,8 @@ contains
         ! boundary points
         call boundary(temp)
 
-        ! update Te
-        Te = temp
+        ! update Ti
+        Ti = temp
 
         deallocate(K1, K2, K3, K4, temp)
         deallocate(cdiffx, cdiffy, cdiffz)
@@ -304,7 +431,7 @@ contains
         temp(:,2:4,:) = ni(:,2:4,:) - tau * (cdiffx(:,2:4,:) + cdiffy(:,2:4,:) + cdiffz(:,2:4,:))
         temp(:,Ny-3:Ny-1,:) = ni(:,Ny-3:Ny-1,:) - tau * (cdiffx(:,Ny-3:Ny-1,:) + cdiffy(:,Ny-3:Ny-1,:) + cdiffz(:,Ny-3:Ny-1,:))
         temp(:,:,2:4) = ni(:,:,2:4) - tau * (cdiffx(:,:,2:4) + cdiffy(:,:,2:4) + cdiffz(:,:,2:4))
-        temp(:,:,Nz-3:Nz-1) = ne(:,:,Nz-3:Nz-1) - tau * (cdiffx(:,:,Nz-3:Nz-1) + cdiffy(:,:,Nz-3:Nz-1) + cdiffz(:,:,Nz-3:Nz-1))
+        temp(:,:,Nz-3:Nz-1) = ni(:,:,Nz-3:Nz-1) - tau * (cdiffx(:,:,Nz-3:Nz-1) + cdiffy(:,:,Nz-3:Nz-1) + cdiffz(:,:,Nz-3:Nz-1))
         ! boundary points
         call boundary(temp)
 
@@ -587,13 +714,13 @@ contains
 
         else
             ! leapfrog scheme
-            temp1 = Bsx_pre - 2.0d0 * tau * (central_difference_y(Esz,hy) - central_difference_z(Esy,hz))
-            temp2 = Bsy_pre - 2.0d0 * tau * (central_difference_z(Esx,hz) - central_difference_x(Esz,hx))
-            temp3 = Bsz_pre - 2.0d0 * tau * (central_difference_x(Esy,hx) - central_difference_y(Esx,hy))
+            temp1 = Bsx - 2.0d0 * tau * (central_difference_y(Esz,hy) - central_difference_z(Esy,hz))
+            temp2 = Bsy - 2.0d0 * tau * (central_difference_z(Esx,hz) - central_difference_x(Esz,hx))
+            temp3 = Bsz - 2.0d0 * tau * (central_difference_x(Esy,hx) - central_difference_y(Esx,hy))
 
-            temp4 = Esx_pre + 2.0d0 * tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
-            temp5 = Esy_pre + 2.0d0 * tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
-            temp6 = Esz_pre + 2.0d0 * tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
+            temp4 = Esx + 2.0d0 * tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
+            temp5 = Esy + 2.0d0 * tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
+            temp6 = Esz + 2.0d0 * tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
         end if
 
         call boundary(temp1)
@@ -625,7 +752,7 @@ contains
 
     end subroutine
 
-    subroutine totel_EMfield
+    subroutine total_EMfield
         implicit none
 
         Bx = Bsx + Bex
@@ -710,6 +837,8 @@ contains
         implicit none
 
         integer :: i, j, k
+
+        allocate(x(Nx), y(Ny), z(Nz))
 
         hx = (xmax - xmin)/(Nx-1)
         hy = (ymax - ymin)/(Ny-1)

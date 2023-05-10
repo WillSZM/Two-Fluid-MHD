@@ -23,7 +23,7 @@ module define_variables
     real(kind=8), allocatable :: x(:), y(:), z(:)
 
     ! time and time step
-    integer :: nstep, nmax
+    integer :: nstep, nmax, nout
     real(kind=8) :: time, tau 
 
     ! physical parameter
