@@ -64,6 +64,7 @@ contains
         nstep = 0
         nmax = 10
         nout = 1    ! output frequency
+        allocate(time_series(nmax))
 
         ! physical parameter
         allocate(ne(Nx, Ny, Nz), ni(Nx, Ny, Nz))
@@ -76,7 +77,7 @@ contains
         allocate(jx(Nx, Ny, Nz), jy(Nx, Ny, Nz), jz(Nx, Ny, Nz))
         allocate(Te(Nx, Ny, Nz), Ti(Nx, Ny, Nz))
         allocate(pre(Nx, Ny, Nz), pri(Nx, Ny, Nz), eta(Nx, Ny, Nz))
-        allocate(divB(Nx,Ny,Nz))
+        allocate(divB(Nx,Ny,Nz),divB_time(nmax),divE(Nx,Ny,Nz),divE_time(nmax))
 
         ne = 1.0d0
         ni = 1.0d0
@@ -193,6 +194,7 @@ contains
         nstep = 0
         nmax = 1000
         nout = 100
+        allocate(time_series(nmax))
 
         ! physical parameter
         allocate(ne(Nx, Ny, Nz), ni(Nx, Ny, Nz))
@@ -205,7 +207,7 @@ contains
         allocate(jx(Nx, Ny, Nz), jy(Nx, Ny, Nz), jz(Nx, Ny, Nz))
         allocate(Te(Nx, Ny, Nz), Ti(Nx, Ny, Nz))
         allocate(pre(Nx, Ny, Nz), pri(Nx, Ny, Nz), eta(Nx, Ny, Nz))
-        allocate(divB(Nx,Ny,Nz))
+        allocate(divB(Nx,Ny,Nz),divB_time(nmax),divE(Nx,Ny,Nz),divE_time(nmax))
 
         do i = 1, Nx
             ne(i,:,:) = 1.0d0/cosh(x(i)/Lh)**2
@@ -229,7 +231,7 @@ contains
         Eey = 0.d0
         Eez = 0.d0
 
-        Bsx_pre = 0.d0
+        Bsx_pre = 0.d0  ! used in leapfrog method
         Bsy_pre = 0.d0
         Bsz_pre = 0.d0
         Esx_pre = 0.d0
@@ -714,13 +716,13 @@ contains
 
         else
             ! leapfrog scheme
-            temp1 = Bsx - 2.0d0 * tau * (central_difference_y(Esz,hy) - central_difference_z(Esy,hz))
-            temp2 = Bsy - 2.0d0 * tau * (central_difference_z(Esx,hz) - central_difference_x(Esz,hx))
-            temp3 = Bsz - 2.0d0 * tau * (central_difference_x(Esy,hx) - central_difference_y(Esx,hy))
+            temp1 = Bsx_pre - 2.0d0 * tau * (central_difference_y(Esz,hy) - central_difference_z(Esy,hz))
+            temp2 = Bsy_pre - 2.0d0 * tau * (central_difference_z(Esx,hz) - central_difference_x(Esz,hx))
+            temp3 = Bsz_pre - 2.0d0 * tau * (central_difference_x(Esy,hx) - central_difference_y(Esx,hy))
 
-            temp4 = Esx + 2.0d0 * tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
-            temp5 = Esy + 2.0d0 * tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
-            temp6 = Esz + 2.0d0 * tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
+            temp4 = Esx_pre + 2.0d0 * tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
+            temp5 = Esy_pre + 2.0d0 * tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
+            temp6 = Esz_pre + 2.0d0 * tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
         end if
 
         call boundary(temp1)
@@ -790,7 +792,15 @@ contains
 
         divB_max = maxval(maxval(maxval(divB,3),2),1)
 
+        divE = central_difference_x(Esx,hx) + central_difference_y(Esy,hy) + central_difference_z(Esz,hz)
+
+        divE_max = maxval(maxval(maxval(divE,3),2),1)
+
+        divB_time(nstep) = divB_max
+        divE_time(nstep) = divE_max
+
         print *, "divB= ", divB_max
+        print *, "divE= ", divE_max
     end subroutine
 
     subroutine setdt
@@ -934,11 +944,11 @@ contains
         integer :: i, j, k
         character(len=50) :: output, format1, format2
 
-        output = 'data_set_' // cn(nstep) // '.dat'
+        output = 'data_set_' // int2str(nstep) // '.dat'
 
         open(unit=101,file=output,status='unknown',form='formatted')
-        write(101,*)'TITLE=Two_Fluid_MHD'
-        write(101,*)'VARIABLES="x" "y" "z" "ne" "ni" "vex" "vey" "vez" "vix" "viy" "viz" &
+        write(101,*) 'TITLE=Two_Fluid_MHD'
+        write(101,*) 'VARIABLES="x" "y" "z" "ne" "ni" "vex" "vey" "vez" "vix" "viy" "viz" &
                                 &"Bx" "By" "Bz" "Ex" "Ey" "Ez" "Te" "Ti" "pe" "pi" "jx" "jy" "jz" '
         format1 = "('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')"
         write(101,format1) Nx,Ny,Nz
@@ -948,6 +958,21 @@ contains
                         vix(i,j,k),viy(i,j,k),viz(i,j,k),Bx(i,j,k), By(i,j,k), Bz(i,j,k), &
                         Ex(i,j,k), Ey(i,j,k), Ez(i,j,k), Te(i,j,k), Ti(i,j,k), pre(i,j,k), pri(i,j,k), &
                         jx(i,j,k), jy(i,j,k), jz(i,j,k),i=1,Nx),j=1,Ny),k=1,Nz)
+    end subroutine
+
+    subroutine record_divBE
+        implicit none
+
+        integer :: i
+        character(len=50) :: output, format
+
+        output = 'divBE_' // '.dat'
+
+        open(unit=102,file=output,status='unknown',form='formatted')
+        write(102,*)'TITLE=Divergence_of_B_and_E'
+        write(102,*) 'VARIABLES="divB" "divE" "time"'
+        format = "(3(1x,e11.4))"
+        write(102,format) (divB_time(i), divE_time(i), time_series(i), i=1, nstep)
     end subroutine
 
     subroutine destroy

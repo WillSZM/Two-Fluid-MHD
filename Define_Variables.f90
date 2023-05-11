@@ -24,7 +24,8 @@ module define_variables
 
     ! time and time step
     integer :: nstep, nmax, nout
-    real(kind=8) :: time, tau 
+    real(kind=8) :: time, tau
+    real(kind=8), allocatable :: time_series(:)
 
     ! physical parameter
     real(kind=8), allocatable :: ne(:,:,:), ni(:,:,:)
@@ -38,8 +39,8 @@ module define_variables
     real(kind=8), allocatable :: Te(:,:,:), Ti(:,:,:)
     real(kind=8), allocatable :: pre(:,:,:), pri(:,:,:), eta(:,:,:)
     real(kind=8), allocatable :: Rex(:,:,:), Rey(:,:,:), Rez(:,:,:), Rix(:,:,:), Riy(:,:,:), Riz(:,:,:)
-    real(kind=8), allocatable :: divB(:,:,:)
-    real(kind=8) :: divB_max, gamma
+    real(kind=8), allocatable :: divB(:,:,:), divB_time(:), divE(:,:,:), divE_time(:)
+    real(kind=8) :: divB_max, divE_max, gamma
 
     ! controling parameter
     integer :: cont

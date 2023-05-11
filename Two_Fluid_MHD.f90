@@ -41,12 +41,16 @@ program main
     call record
 
     do while (nstep < nmax)
+
         call setdt
-        call stepon
 
         nstep = nstep + 1
         time = time + tau
+        time_series(nstep) = time
         print *, 'nstep= ', nstep, ' ', 'time= ', time, '', 'dt=', tau
+
+        call stepon
+
         print *, ' '
 
         if (mod(nstep, nout) == 0) then
@@ -56,6 +60,7 @@ program main
     end do
 
     call record
+    call record_divBE
 
     call destroy
 

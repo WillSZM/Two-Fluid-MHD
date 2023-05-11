@@ -3,6 +3,18 @@ module custom_functions
 
 contains
 
+    function int2str(num)
+        ! assume that n is no greater than 999999
+        implicit none
+
+        integer :: num
+        character(len=6) :: int2str
+
+        write(int2str, "(I6.6)") num
+
+    end function
+
+
     character*6 function cn(n)
         !-----assume that n is no greater than 999999
         !
