@@ -192,8 +192,8 @@ contains
         ! time and time step
         time = 0.0
         nstep = 0
-        nmax = 1000
-        nout = 100
+        nmax = 10
+        nout = 1
         allocate(time_series(nmax))
 
         ! physical parameter
@@ -496,7 +496,7 @@ contains
         ! add other terms
         temp1 = temp1 + tau / (me * ne) * (ne * qe * (Ex + (vey * Bz - vez * By)) - central_difference_x(pre, hx) + const3 * Rex)
         temp2 = temp2 + tau / (me * ne) * (ne * qe * (Ey + (vez * Bx - vex * Bz)) - central_difference_y(pre, hy) + const3 * Rey)
-        temp3 = temp2 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - central_difference_z(pre, hz) + const3 * Rez)
+        temp3 = temp3 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - central_difference_z(pre, hz) + const3 * Rez)
 
         ! boundary points
         call boundary(temp1)
@@ -700,6 +700,8 @@ contains
 
         real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:), temp3(:,:,:)   ! for Magnetic field
         real(kind=8), allocatable :: temp4(:,:,:), temp5(:,:,:), temp6(:,:,:)   ! for Electric field
+
+        character(len=40) :: filename
         
         allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz), temp3(Nx,Ny,Nz))
         allocate(temp4(Nx,Ny,Nz), temp5(Nx,Ny,Nz), temp6(Nx,Ny,Nz))
@@ -713,6 +715,14 @@ contains
             temp4 = Esx + tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
             temp5 = Esy + tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
             temp6 = Esz + tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
+            
+            !call record_debug(central_difference_x(Bsy,hx), "central_difference_x(Bsy,hx).dat")
+
+            !call record_debug(central_difference_y(Bsx,hy), "central_difference_y(Bsx,hy).dat")
+
+            !call record_debug(Jz, "Jz.dat")
+
+            !call record_debug(temp6, "temp6.dat")
 
         else
             ! leapfrog scheme
@@ -751,6 +761,24 @@ contains
 
         deallocate(temp1, temp2, temp3)
         deallocate(temp4, temp5, temp6)
+
+    end subroutine
+
+    subroutine record_debug(a, output)
+        implicit none
+
+        real(kind=8) :: a(:,:,:)
+
+        integer :: i, j, k
+        character(len=32) :: output
+        character(len=50) :: format
+
+        open(unit=103,file=output,status='unknown',form='formatted')
+        !write(102,*)'TITLE=Debug'
+        !write(102,*) 'VARIABLES="x" "y" "data"'
+        format = "(4(1x,e11.4))"
+        write(103,format) (((x(i), y(j), z(k), a(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
+        close(103)
 
     end subroutine
 
@@ -966,7 +994,7 @@ contains
         integer :: i
         character(len=50) :: output, format
 
-        output = 'divBE_' // '.dat'
+        output = 'divBE' // '.dat'
 
         open(unit=102,file=output,status='unknown',form='formatted')
         write(102,*)'TITLE=Divergence_of_B_and_E'
