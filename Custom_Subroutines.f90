@@ -357,7 +357,7 @@ contains
                                         + viy(:,Ny-3:Ny-1,:) * cdiffy(:,Ny-3:Ny-1,:) + viz(:,Ny-3:Ny-1,:) * cdiffz(:,Ny-3:Ny-1,:))
         temp(:,:,2:4) = Ti(:,:,2:4) - tau * (vix(:,:,2:4) * cdiffx(:,:,2:4) + viy(:,:,2:4) * cdiffy(:,:,2:4) &
                                                 + viz(:,:,2:4) * cdiffz(:,:,2:4))
-        temp(:,:,Nz-3:Nz-1) = Te(:,:,Nz-3:Nz-1) - tau * (vix(:,:,Nz-3:Nz-1) * cdiffx(:,:,Nz-3:Nz-1) & 
+        temp(:,:,Nz-3:Nz-1) = Ti(:,:,Nz-3:Nz-1) - tau * (vix(:,:,Nz-3:Nz-1) * cdiffx(:,:,Nz-3:Nz-1) & 
                                         + viy(:,:,Nz-3:Nz-1) * cdiffy(:,:,Nz-3:Nz-1) + viz(:,:,Nz-3:Nz-1) * cdiffz(:,:,Nz-3:Nz-1))
 
         ! add other terms
@@ -448,6 +448,8 @@ contains
         implicit none
         real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:), temp3(:,:,:)
         real(kind=8), allocatable :: K1(:,:,:), K2(:,:,:), K3(:,:,:), K4(:,:,:)
+        ! integer :: i, j, k
+        ! real(kind=8) :: cdiffz(Nx,Ny,Nz)
 
         allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz), temp3(Nx,Ny,Nz))
         allocate(K1(Nx,Ny,Nz), K2(Nx,Ny,Nz), K3(Nx,Ny,Nz), K4(Nx,Ny,Nz))
@@ -542,20 +544,58 @@ contains
         K4 = -tau * (vix * central_difference_x(viz+K3, hx) + viy * central_difference_y(viz+K3, hy) & 
                         + (viz+K3) * central_difference_z(viz+K3, hz))
         temp3 = viz + (K1 + 2.0d0*K2 + 2.0d0*K3 + K4) / 6.0d0
+
+        ! open(unit=104,file="temp31.dat",status='unknown',form='formatted')
+        ! write(104,*)'TITLE=Debug'
+        ! write(104,*) 'VARIABLES="x" "y" "z" "data"'
+        ! write(104,"('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')") Nx,Ny,Nz
+        ! write(104,"(4(1x,e11.4))") (((x(i), y(j), z(k), temp3(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
+        ! close(104)
         
 
         ! subouter points use Euler
         call momentum_subouter(temp1, temp2, temp3, 2)
+        
+        ! open(unit=104,file="temp32.dat",status='unknown',form='formatted')
+        ! write(104,*)'TITLE=Debug'
+        ! write(104,*) 'VARIABLES="x" "y" "z" "data"'
+        ! write(104,"('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')") Nx,Ny,Nz
+        ! write(104,"(4(1x,e11.4))") (((x(i), y(j), z(k), temp3(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
+        ! close(104)
 
         ! add other terms
         temp1 = temp1 + tau / (mi * ni) * (ni * qi * (Ex + (viy * Bz - viz * By)) - central_difference_x(pri, hx) + const3 * Rix)
         temp2 = temp2 + tau / (mi * ni) * (ni * qi * (Ey + (viz * Bx - vix * Bz)) - central_difference_y(pri, hy) + const3 * Riy)
         temp3 = temp3 + tau / (mi * ni) * (ni * qi * (Ez + (vix * By - viy * Bx)) - central_difference_z(pri, hz) + const3 * Riz)
 
+        ! open(unit=104,file="temp33.dat",status='unknown',form='formatted')
+        ! write(104,*)'TITLE=Debug'
+        ! write(104,*) 'VARIABLES="x" "y" "z" "data"'
+        ! write(104,"('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')") Nx,Ny,Nz
+        ! write(104,"(4(1x,e11.4))") (((x(i), y(j), z(k), temp3(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
+        ! close(104)
+
+        ! cdiffz = central_difference_z(pri, hz)
+
+        ! open(unit=104,file="detail.dat",status='unknown',form='formatted')
+        ! write(104,*)'TITLE=Debug'
+        ! write(104,*) 'VARIABLES="x" "y" "z" "vixBy" "viyBx" "cdiffz" "pri"'
+        ! write(104,"('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')") Nx,Ny,Nz
+        ! write(104,"(7(1x,e11.4))") & 
+        !     (((x(i), y(j), z(k), vix(i,j,k)*By(i,j,k), viy(i,j,k)*Bx(i,j,k), cdiffz(i,j,k), pri(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
+        ! close(104)
+
         ! boundary points
         call boundary(temp1)
         call boundary(temp2)
         call boundary(temp3)
+
+        ! open(unit=104,file="temp34.dat",status='unknown',form='formatted')
+        ! write(104,*)'TITLE=Debug'
+        ! write(104,*) 'VARIABLES="x" "y" "z" "data"'
+        ! write(104,"('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')") Nx,Ny,Nz
+        ! write(104,"(4(1x,e11.4))") (((x(i), y(j), z(k), temp3(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
+        ! close(104)
 
         ! update
         vix = temp1
@@ -700,8 +740,6 @@ contains
 
         real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:), temp3(:,:,:)   ! for Magnetic field
         real(kind=8), allocatable :: temp4(:,:,:), temp5(:,:,:), temp6(:,:,:)   ! for Electric field
-
-        character(len=40) :: filename
         
         allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz), temp3(Nx,Ny,Nz))
         allocate(temp4(Nx,Ny,Nz), temp5(Nx,Ny,Nz), temp6(Nx,Ny,Nz))
@@ -774,8 +812,10 @@ contains
         character(len=50) :: format
 
         open(unit=103,file=output,status='unknown',form='formatted')
-        !write(102,*)'TITLE=Debug'
-        !write(102,*) 'VARIABLES="x" "y" "data"'
+        ! write(103,*)'TITLE=Debug'
+        ! write(103,*) 'VARIABLES="x" "y" "data"'
+        ! format1 = "('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')"
+        ! write(103,format1) Nx,Ny,Nz
         format = "(4(1x,e11.4))"
         write(103,format) (((x(i), y(j), z(k), a(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
         close(103)
