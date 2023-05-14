@@ -273,12 +273,15 @@ contains
         call continuity_equation
         call momentum_equation
         call energy_equation
+
+        call current
+
         call EMField_eqution
         
         call total_EMfield
 
         call abnormal_resistance
-        call current
+
         call pressure
 
         call check
@@ -740,31 +743,71 @@ contains
 
         real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:), temp3(:,:,:)   ! for Magnetic field
         real(kind=8), allocatable :: temp4(:,:,:), temp5(:,:,:), temp6(:,:,:)   ! for Electric field
+        real(kind=8), allocatable :: zero(:,:,:)
         
         allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz), temp3(Nx,Ny,Nz))
         allocate(temp4(Nx,Ny,Nz), temp5(Nx,Ny,Nz), temp6(Nx,Ny,Nz))
+        allocate(zero(Nx,Ny,Nz))
 
-        if (nstep==1) then
-            ! Euler scheme
-            temp1 = Bsx - tau * (cdiff4_y(Esz,hy) - cdiff4_z(Esy,hz))
-            temp2 = Bsy - tau * (cdiff4_z(Esx,hz) - cdiff4_x(Esz,hx))
-            temp3 = Bsz - tau * (cdiff4_x(Esy,hx) - cdiff4_y(Esx,hy))
+        zero = 0.0d0
 
-            temp4 = Esx + tau * const2 * (cdiff4_y(Bsz,hy) - cdiff4_z(Bsy,hz) - Jx)
-            temp5 = Esy + tau * const2 * (cdiff4_z(Bsx,hz) - cdiff4_x(Bsz,hx) - Jy)
-            temp6 = Esz + tau * const2 * (cdiff4_x(Bsy,hx) - cdiff4_y(Bsx,hy) - Jz)
+        ! if (nstep==1) then
+        !     ! Euler scheme
+        !     temp1 = Bsx - tau * (cdiff4_y(Esz,hy) - cdiff4_z(Esy,hz))
+        !     temp2 = Bsy - tau * (cdiff4_z(Esx,hz) - cdiff4_x(Esz,hx))
+        !     temp3 = Bsz - tau * (cdiff4_x(Esy,hx) - cdiff4_y(Esx,hy))
+
+        !     temp4 = Esx + tau * const2 * (cdiff4_y(Bsz,hy) - cdiff4_z(Bsy,hz) - Jx)
+        !     temp5 = Esy + tau * const2 * (cdiff4_z(Bsx,hz) - cdiff4_x(Bsz,hx) - Jy)
+        !     temp6 = Esz + tau * const2 * (cdiff4_x(Bsy,hx) - cdiff4_y(Bsx,hy) - Jz)
             
 
-        else
-            ! leapfrog scheme
-            temp1 = Bsx_pre - 2.0d0 * tau * (cdiff4_y(Esz,hy) - cdiff4_z(Esy,hz))
-            temp2 = Bsy_pre - 2.0d0 * tau * (cdiff4_z(Esx,hz) - cdiff4_x(Esz,hx))
-            temp3 = Bsz_pre - 2.0d0 * tau * (cdiff4_x(Esy,hx) - cdiff4_y(Esx,hy))
+        ! else
+        !     ! leapfrog scheme
+        !     temp1 = Bsx_pre - 2.0d0 * tau * (cdiff4_y(Esz,hy) - cdiff4_z(Esy,hz))
+        !     temp2 = Bsy_pre - 2.0d0 * tau * (cdiff4_z(Esx,hz) - cdiff4_x(Esz,hx))
+        !     temp3 = Bsz_pre - 2.0d0 * tau * (cdiff4_x(Esy,hx) - cdiff4_y(Esx,hy))
 
-            temp4 = Esx_pre + 2.0d0 * tau * const2 * (cdiff4_y(Bsz,hy) - cdiff4_z(Bsy,hz) - Jx)
-            temp5 = Esy_pre + 2.0d0 * tau * const2 * (cdiff4_z(Bsx,hz) - cdiff4_x(Bsz,hx) - Jy)
-            temp6 = Esz_pre + 2.0d0 * tau * const2 * (cdiff4_x(Bsy,hx) - cdiff4_y(Bsx,hy) - Jz)
-        end if
+        !     temp4 = Esx_pre + 2.0d0 * tau * const2 * (cdiff4_y(Bsz,hy) - cdiff4_z(Bsy,hz) - Jx)
+        !     temp5 = Esy_pre + 2.0d0 * tau * const2 * (cdiff4_z(Bsx,hz) - cdiff4_x(Bsz,hx) - Jy)
+        !     temp6 = Esz_pre + 2.0d0 * tau * const2 * (cdiff4_x(Bsy,hx) - cdiff4_y(Bsx,hy) - Jz)
+        ! end if
+
+        ! call boundary(temp1)
+        ! call boundary(temp2)
+        ! call boundary(temp3)
+        ! call boundary(temp4)
+        ! call boundary(temp5)
+        ! call boundary(temp6)
+
+        ! ! update
+        ! Bsx_pre = Bsx
+        ! Bsy_pre = Bsy
+        ! Bsz_pre = Bsz
+
+        ! Esx_pre = Esx
+        ! Esy_pre = Esy
+        ! Esz_pre = Esz
+
+        ! Bsx = temp1
+        ! Bsy = temp2
+        ! Bsz = temp3
+
+        ! Esx = temp4
+        ! Esy = temp5
+        ! Esz = temp6
+
+        ! deallocate(temp1, temp2, temp3)
+        ! deallocate(temp4, temp5, temp6)
+
+        ! Lax scheme
+        temp1 = Lax(Bsx,zero,Esz,-Esy,zero,tau,hx,hy,hz)
+        temp2 = Lax(Bsy,-Esz,zero,Esx,zero,tau,hx,hy,hz)
+        temp3 = Lax(Bsz,Esy,-Esx,zero,zero,tau,hx,hy,hz)
+
+        temp4 = const2*Lax(Esx/const2,zero,-Bsz,Bsy,-Jx,tau,hx,hy,hz)
+        temp5 = const2*Lax(Esy/const2,Bsz,zero,-Bsx,-Jy,tau,hx,hy,hz)
+        temp6 = const2*Lax(Esz/const2,-Bsy,Bsx,zero,-Jz,tau,hx,hy,hz)
 
         call boundary(temp1)
         call boundary(temp2)
@@ -772,15 +815,6 @@ contains
         call boundary(temp4)
         call boundary(temp5)
         call boundary(temp6)
-
-        ! update
-        Bsx_pre = Bsx
-        Bsy_pre = Bsy
-        Bsz_pre = Bsz
-
-        Esx_pre = Esx
-        Esy_pre = Esy
-        Esz_pre = Esz
 
         Bsx = temp1
         Bsy = temp2
@@ -792,7 +826,7 @@ contains
 
         deallocate(temp1, temp2, temp3)
         deallocate(temp4, temp5, temp6)
-
+        deallocate(zero)
     end subroutine
 
     subroutine record_debug(a, output)

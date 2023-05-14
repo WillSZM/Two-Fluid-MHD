@@ -180,4 +180,70 @@ contains
         cdiff4_z(:,:,size(a,3)) = (3.0d0*a(:,:,size(a,3)) - 4.0d0*a(:,:,size(a,3)-1) + a(:,:,size(a,3)-2))/(2*hz)
     end function
 
+    function Lax(x,f,g,h,s,tau,hx,hy,hz)
+        ! x is unknown term, 3D array; f,g,h are flux terms; s is the source term
+        ! Lax scheme
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: x,f,g,h,s
+        real(kind=8), dimension(size(x,1),size(x,2),size(x,3)) :: Lax
+        real(kind=8) :: tau,hx,hy,hz
+        integer :: s1,s2,s3
+
+        s1 = size(x,1)
+        s2 = size(x,2)
+        s3 = size(x,3)
+
+        Lax(2:s1-1,2:s2-1,2:s3-1) = (x(3:s1,2:s2-1,2:s3-1) + x(1:s1-2,2:s2-1,2:s3-1) & 
+                                    + x(2:s1-1,3:s2,2:s3-1) + x(2:s1-1,1:s2-2,2:s3-1) &
+                                    + x(2:s1-1,2:s2-1,3:s3) + x(2:s1-1,2:s2-1,1:s3-2)) / 6.0d0 & 
+                                    - tau/(2.0d0*hx)*(f(3:s1,2:s2-1,2:s3-1)-f(1:s1-2,2:s2-1,2:s3-1)) & 
+                                    - tau/(2.0d0*hy)*(g(2:s1-1,3:s2,2:s3-1)-g(2:s1-1,1:s2-2,2:s3-1)) &
+                                    - tau/(2.0d0*hz)*(h(2:s1-1,2:s2-1,3:s3)-h(2:s1-1,2:s2-1,1:s3-2)) &
+                                    + tau*s(2:s1-1,2:s2-1,2:s3-1)
+    end function
+
+    function MacCormack(x,f,g,h,s,tau,hx,hy,hz)
+        ! MacCormack scheme
+        ! x is unknown term, 3D array; f,g,h are flux terms; s is the source term
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: x,f,g,h,s
+        real(kind=8), dimension(size(x,1),size(x,2),size(x,3)) :: MacCormack
+        real(kind=8) :: tau,hx,hy,hz
+        integer :: s1,s2,s3
+        real(kind=8) :: a, b, c    ! parameter for MacCormack scheme
+        real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:)
+
+        allocate(temp1(size(x,1),size(x,2),size(x,3)), temp2(size(x,1),size(x,2),size(x,3)))
+
+        a = 1.0d0
+        b = 1.0d0
+        c = 1.0d0
+
+        s1 = size(x,1)
+        s2 = size(x,2)
+        s3 = size(x,3)
+
+        ! Prediction step
+        temp1(2:s1-1,2:s2-1,2:s3-1) = x - tau/hx*(a*(f(3:s1,2:s2-1,2:s3-1)-f(2:s1-1,2:s2-1,2:s3-1)) & 
+                                                    + (1-a)*(f(2:s1-1,2:s2-1,2:s3-1)-f(1:s1-2,2:s2-1,2:s3-1))) &
+                                        - tau/hy*(b*(g(2:s1-1,3:s2,2:s3-1)-g(2:s1-1,2:s2-1,2:s3-1)) &
+                                                    + (1-b)*(g(2:s1-1,2:s2-1,2:s3-1)-g(2:s1-1,1:s2-2,2:s3-1))) &
+                                        - tau/hz*(c*(h(2:s1-1,2:s2-1,3:s3)-h(2:s1-1,2:s2-1,2:s3-1)) &
+                                                    + (1-c)*(h(2:s1-1,2:s2-1,2:s3-1)-h(2:s1-1,2:s2-1,1:s3-2))) &
+                                        + tau*s(2:s1-1,2:s2-1,2:s3-1)
+
+        ! Correction step
+        temp2(2:s1-1,2:s2-1,2:s3-1) = temp1(2:s1-1,2:s2-1,2:s3-1) &
+                                            - tau/hx*((1-a)*(f(3:s1,2:s2-1,2:s3-1)-f(2:s1-1,2:s2-1,2:s3-1)) &
+                                                        + a*(f(2:s1-1,2:s2-1,2:s3-1)-f(1:s1-2,2:s2-1,2:s3-1))) &
+                                            - tau/hy*((1-b)*(g(2:s1-1,3:s2,2:s3-1)-g(2:s1-1,2:s2-1,2:s3-1)) &
+                                                        + b*(g(2:s1-1,2:s2-1,2:s3-1)-g(2:s1-1,1:s2-2,2:s3-1))) &
+                                            - tau/hz*((1-c)*(h(2:s1-1,2:s2-1,3:s3)-h(2:s1-1,2:s2-1,2:s3-1)) &
+                                                        + c*(h(2:s1-1,2:s2-1,2:s3-1)-h(2:s1-1,2:s2-1,1:s3-2))) &
+                                            + tau*s(2:s1-1,2:s2-1,2:s3-1)
+
+        MacCormack(2:s1-1,2:s2-1,2:s3-1) = (temp1(2:s1-1,2:s2-1,2:s3-1) + temp2(2:s1-1,2:s2-1,2:s3-1)) / 2.0d0
+
+        deallocate(temp1, temp2)
+    end function
 end module Custom_functions
