@@ -93,5 +93,91 @@ contains
         central_difference_z(:,:,size(a,3)) = (a(:,:,size(a,3)) - a(:,:,size(a,3)-1))/hz
     end function
 
+    function cdiff2sd_x(a,hx)
+        ! a is a 3D array, hx is the grid spacing in x direction
+        ! central difference of second derivative in x direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff2sd_x
+        real(kind=8) :: hx
+        
+        cdiff2sd_x(2:size(a,1)-1,:,:) = (a(3:size(a,1),:,:) - 2*a(2:size(a,1)-1,:,:) + a(1:size(a,1)-2,:,:))/(hx**2)
+        cdiff2sd_x(1,:,:) = (-a(4,:,:) + 4*a(3,:,:) - 5*a(2,:,:) + 2*a(1,:,:))/(hx**2)
+        cdiff2sd_x(size(a,1),:,:) = (a(size(a,1)-3,:,:) - 4*a(size(a,1)-2,:,:) + 5*a(size(a,1)-1,:,:) - 2*a(size(a,1),:,:))/(hx**2)
+    end function
+
+    function cdiff2sd_y(a,hy)
+        ! a is a 3D array, hy is the grid spacing in y direction
+        ! central difference of second derivative in y direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff2sd_y
+        real(kind=8) :: hy
+        
+        cdiff2sd_y(:,2:size(a,2)-1,:) = (a(:,3:size(a,2),:) - 2*a(:,2:size(a,2)-1,:) + a(:,1:size(a,2)-2,:))/(hy**2)
+        cdiff2sd_y(:,1,:) = (-a(:,4,:) + 4*a(:,3,:) - 5*a(:,2,:) + 2*a(:,1,:))/(hy**2)
+        cdiff2sd_y(:,size(a,2),:) = (a(:,size(a,2)-3,:) - 4*a(:,size(a,2)-2,:) + 5*a(:,size(a,2)-1,:) - 2*a(:,size(a,2),:))/(hy**2)
+    end function
+
+    function cdiff2sd_z(a,hz)
+        ! a is a 3D array, hz is the grid spacing in z direction
+        ! central difference of second derivative in z direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff2sd_z
+        real(kind=8) :: hz
+        
+        cdiff2sd_z(:,:,2:size(a,3)-1) = (a(:,:,3:size(a,3)) - 2*a(:,:,2:size(a,3)-1) + a(:,:,1:size(a,3)-2))/(hz**2)
+        cdiff2sd_z(:,:,1) = (-a(:,:,4) + 4*a(:,:,3) - 5*a(:,:,2) + 2*a(:,:,1))/(hz**2)
+        cdiff2sd_z(:,:,size(a,3)) = (a(:,:,size(a,3)-3) - 4*a(:,:,size(a,3)-2) + 5*a(:,:,size(a,3)-1) - 2*a(:,:,size(a,3)))/(hz**2)
+    end function
+
+    function cdiff4_x(a,hx)
+        ! a is a 3D array, hx is the grid spacing in x direction
+        ! 4th order central difference in x direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff4_x
+        real(kind=8) :: hx
+
+        cdiff4_x(3:size(a,1)-2,:,:) = (-a(5:size(a,1),:,:) + 8*a(4:size(a,1)-1,:,:) & 
+                                        - 8*a(2:size(a,1)-3,:,:) + a(1:size(a,1)-4,:,:))/(12*hx)
+        cdiff4_x(2,:,:) = (a(3,:,:) - a(1,:,:))/(2*hx)
+        cdiff4_x(1,:,:) = (-3.0d0*a(1,:,:) + 4.0d0*a(2,:,:) - a(3,:,:))/(2*hx)
+        cdiff4_x(size(a,1)-1,:,:) = (a(size(a,1),:,:) - a(size(a,1)-2,:,:))/(2*hx)
+        cdiff4_x(size(a,1),:,:) = (3.0d0*a(size(a,1),:,:) - 4.0d0*a(size(a,1)-1,:,:) + a(size(a,1)-2,:,:))/(2*hx)
+    end function
+
+    function cdiff4_y(a,hy)
+        ! a is a 3D array, hy is the grid spacing in y direction
+        ! 4th order central difference in y direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff4_y
+        real(kind=8) :: hy
+
+        cdiff4_y(:,3:size(a,2)-2,:) = (-a(:,5:size(a,2),:) + 8*a(:,4:size(a,2)-1,:) & 
+                                        - 8*a(:,2:size(a,2)-3,:) + a(:,1:size(a,2)-4,:))/(12*hy)
+        cdiff4_y(:,2,:) = (a(:,3,:) - a(:,1,:))/(2*hy)
+        cdiff4_y(:,1,:) = (-3.0d0*a(:,1,:) + 4.0d0*a(:,2,:) - a(:,3,:))/(2*hy)
+        cdiff4_y(:,size(a,2)-1,:) = (a(:,size(a,2),:) - a(:,size(a,2)-2,:))/(2*hy)
+        cdiff4_y(:,size(a,2),:) = (3.0d0*a(:,size(a,2),:) - 4.0d0*a(:,size(a,2)-1,:) + a(:,size(a,2)-2,:))/(2*hy)
+    end function
+
+    function cdiff4_z(a,hz)
+        ! a is a 3D array, hz is the grid spacing in z direction
+        ! 4th order central difference in z direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff4_z
+        real(kind=8) :: hz
+
+        cdiff4_z(:,:,3:size(a,3)-2) = (-a(:,:,5:size(a,3)) + 8*a(:,:,4:size(a,3)-1) & 
+                                        - 8*a(:,:,2:size(a,3)-3) + a(:,:,1:size(a,3)-4))/(12*hz)
+        cdiff4_z(:,:,2) = (a(:,:,3) - a(:,:,1))/(2*hz)
+        cdiff4_z(:,:,1) = (-3.0d0*a(:,:,1) + 4.0d0*a(:,:,2) - a(:,:,3))/(2*hz)
+        cdiff4_z(:,:,size(a,3)-1) = (a(:,:,size(a,3)) - a(:,:,size(a,3)-2))/(2*hz)
+        cdiff4_z(:,:,size(a,3)) = (3.0d0*a(:,:,size(a,3)) - 4.0d0*a(:,:,size(a,3)-1) + a(:,:,size(a,3)-2))/(2*hz)
+    end function
 
 end module Custom_functions

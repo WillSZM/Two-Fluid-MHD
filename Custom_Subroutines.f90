@@ -192,8 +192,8 @@ contains
         ! time and time step
         time = 0.0
         nstep = 0
-        nmax = 10
-        nout = 1
+        nmax = 5000
+        nout = 500
         allocate(time_series(nmax))
 
         ! physical parameter
@@ -322,8 +322,8 @@ contains
                                         + vey(:,:,Nz-3:Nz-1) * cdiffy(:,:,Nz-3:Nz-1) + vez(:,:,Nz-3:Nz-1) * cdiffz(:,:,Nz-3:Nz-1))
 
         ! add other terms
-        temp = temp + tau * 2.0d0 / (3.0d0*ne) * (-pre * (central_difference_x(vex,hx) + central_difference_y(vey,hy) &
-                                                            + central_difference_z(vez,hz)))
+        temp = temp + tau * 2.0d0 / (3.0d0*ne) * (-pre * (cdiff4_x(vex,hx) + cdiff4_y(vey,hy) &
+                                                            + cdiff4_z(vez,hz)))
 
         ! boundary points
         call boundary(temp)
@@ -361,8 +361,8 @@ contains
                                         + viy(:,:,Nz-3:Nz-1) * cdiffy(:,:,Nz-3:Nz-1) + viz(:,:,Nz-3:Nz-1) * cdiffz(:,:,Nz-3:Nz-1))
 
         ! add other terms
-        temp = temp + tau * 2.0d0 / (3.0d0*ni) * (-pri * (central_difference_x(vix,hx) + central_difference_y(viy,hy) &
-                                                            + central_difference_z(viz,hz)))
+        temp = temp + tau * 2.0d0 / (3.0d0*ni) * (-pri * (cdiff4_x(vix,hx) + cdiff4_y(viy,hy) &
+                                                            + cdiff4_z(viz,hz)))
 
         ! boundary points
         call boundary(temp)
@@ -496,9 +496,9 @@ contains
         call momentum_subouter(temp1, temp2, temp3, 1)
 
         ! add other terms
-        temp1 = temp1 + tau / (me * ne) * (ne * qe * (Ex + (vey * Bz - vez * By)) - central_difference_x(pre, hx) + const3 * Rex)
-        temp2 = temp2 + tau / (me * ne) * (ne * qe * (Ey + (vez * Bx - vex * Bz)) - central_difference_y(pre, hy) + const3 * Rey)
-        temp3 = temp3 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - central_difference_z(pre, hz) + const3 * Rez)
+        temp1 = temp1 + tau / (me * ne) * (ne * qe * (Ex + (vey * Bz - vez * By)) - cdiff4_x(pre, hx) + const3 * Rex)
+        temp2 = temp2 + tau / (me * ne) * (ne * qe * (Ey + (vez * Bx - vex * Bz)) - cdiff4_y(pre, hy) + const3 * Rey)
+        temp3 = temp3 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - cdiff4_z(pre, hz) + const3 * Rez)
 
         ! boundary points
         call boundary(temp1)
@@ -564,9 +564,9 @@ contains
         ! close(104)
 
         ! add other terms
-        temp1 = temp1 + tau / (mi * ni) * (ni * qi * (Ex + (viy * Bz - viz * By)) - central_difference_x(pri, hx) + const3 * Rix)
-        temp2 = temp2 + tau / (mi * ni) * (ni * qi * (Ey + (viz * Bx - vix * Bz)) - central_difference_y(pri, hy) + const3 * Riy)
-        temp3 = temp3 + tau / (mi * ni) * (ni * qi * (Ez + (vix * By - viy * Bx)) - central_difference_z(pri, hz) + const3 * Riz)
+        temp1 = temp1 + tau / (mi * ni) * (ni * qi * (Ex + (viy * Bz - viz * By)) - cdiff4_x(pri, hx) + const3 * Rix)
+        temp2 = temp2 + tau / (mi * ni) * (ni * qi * (Ey + (viz * Bx - vix * Bz)) - cdiff4_y(pri, hy) + const3 * Riy)
+        temp3 = temp3 + tau / (mi * ni) * (ni * qi * (Ez + (vix * By - viy * Bx)) - cdiff4_z(pri, hz) + const3 * Riz)
 
         ! open(unit=104,file="temp33.dat",status='unknown',form='formatted')
         ! write(104,*)'TITLE=Debug'
@@ -746,31 +746,24 @@ contains
 
         if (nstep==1) then
             ! Euler scheme
-            temp1 = Bsx - tau * (central_difference_y(Esz,hy) - central_difference_z(Esy,hz))
-            temp2 = Bsy - tau * (central_difference_z(Esx,hz) - central_difference_x(Esz,hx))
-            temp3 = Bsz - tau * (central_difference_x(Esy,hx) - central_difference_y(Esx,hy))
+            temp1 = Bsx - tau * (cdiff4_y(Esz,hy) - cdiff4_z(Esy,hz))
+            temp2 = Bsy - tau * (cdiff4_z(Esx,hz) - cdiff4_x(Esz,hx))
+            temp3 = Bsz - tau * (cdiff4_x(Esy,hx) - cdiff4_y(Esx,hy))
 
-            temp4 = Esx + tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
-            temp5 = Esy + tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
-            temp6 = Esz + tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
+            temp4 = Esx + tau * const2 * (cdiff4_y(Bsz,hy) - cdiff4_z(Bsy,hz) - Jx)
+            temp5 = Esy + tau * const2 * (cdiff4_z(Bsx,hz) - cdiff4_x(Bsz,hx) - Jy)
+            temp6 = Esz + tau * const2 * (cdiff4_x(Bsy,hx) - cdiff4_y(Bsx,hy) - Jz)
             
-            !call record_debug(central_difference_x(Bsy,hx), "central_difference_x(Bsy,hx).dat")
-
-            !call record_debug(central_difference_y(Bsx,hy), "central_difference_y(Bsx,hy).dat")
-
-            !call record_debug(Jz, "Jz.dat")
-
-            !call record_debug(temp6, "temp6.dat")
 
         else
             ! leapfrog scheme
-            temp1 = Bsx_pre - 2.0d0 * tau * (central_difference_y(Esz,hy) - central_difference_z(Esy,hz))
-            temp2 = Bsy_pre - 2.0d0 * tau * (central_difference_z(Esx,hz) - central_difference_x(Esz,hx))
-            temp3 = Bsz_pre - 2.0d0 * tau * (central_difference_x(Esy,hx) - central_difference_y(Esx,hy))
+            temp1 = Bsx_pre - 2.0d0 * tau * (cdiff4_y(Esz,hy) - cdiff4_z(Esy,hz))
+            temp2 = Bsy_pre - 2.0d0 * tau * (cdiff4_z(Esx,hz) - cdiff4_x(Esz,hx))
+            temp3 = Bsz_pre - 2.0d0 * tau * (cdiff4_x(Esy,hx) - cdiff4_y(Esx,hy))
 
-            temp4 = Esx_pre + 2.0d0 * tau * const2 * (central_difference_y(Bsz,hy) - central_difference_z(Bsy,hz) - Jx)
-            temp5 = Esy_pre + 2.0d0 * tau * const2 * (central_difference_z(Bsx,hz) - central_difference_x(Bsz,hx) - Jy)
-            temp6 = Esz_pre + 2.0d0 * tau * const2 * (central_difference_x(Bsy,hx) - central_difference_y(Bsx,hy) - Jz)
+            temp4 = Esx_pre + 2.0d0 * tau * const2 * (cdiff4_y(Bsz,hy) - cdiff4_z(Bsy,hz) - Jx)
+            temp5 = Esy_pre + 2.0d0 * tau * const2 * (cdiff4_z(Bsx,hz) - cdiff4_x(Bsz,hx) - Jy)
+            temp6 = Esz_pre + 2.0d0 * tau * const2 * (cdiff4_x(Bsy,hx) - cdiff4_y(Bsx,hy) - Jz)
         end if
 
         call boundary(temp1)
