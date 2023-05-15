@@ -202,6 +202,59 @@ contains
                                     + tau*s(2:s1-1,2:s2-1,2:s3-1)
     end function
 
+    function Lax4(x,f,g,h,s,tau,hx,hy,hz)
+        ! x is unknown term, 3D array; f,g,h are flux terms; s is the source term
+        ! Lax scheme
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: x,f,g,h,s
+        real(kind=8), dimension(size(x,1),size(x,2),size(x,3)) :: Lax4
+        real(kind=8) :: tau,hx,hy,hz
+        integer :: s1,s2,s3
+        real(kind=8), allocatable, dimension(:,:,:) :: cdiff4_fx,cdiff4_gy,cdiff4_hz
+
+        s1 = size(x,1)
+        s2 = size(x,2)
+        s3 = size(x,3)
+
+        allocate(cdiff4_fx(s1,s2,s3),cdiff4_gy(s1,s2,s3),cdiff4_hz(s1,s2,s3))
+
+        cdiff4_fx = cdiff4_x(f,hx)
+        cdiff4_gy = cdiff4_y(g,hy)
+        cdiff4_hz = cdiff4_z(h,hz)
+
+        ! cdiff4_fx(3:s1-2,:,:) = (-f(5:s1,:,:) + 8*f(4:s1-1,:,:) & 
+        !                                 - 8*f(2:s1-3,:,:) + f(1:s1-4,:,:))/(12*hx)
+        ! cdiff4_fx(2,:,:) = (f(3,:,:) - f(1,:,:))/(2*hx)
+        ! cdiff4_fx(s1-1,:,:) = (f(s1,:,:) - f(s1-2,:,:))/(2*hx)
+
+        ! cdiff4_gy(:,3:s2-2,:) = (-g(:,5:s2,:) + 8*g(:,4:s2-1,:) & 
+        !                                 - 8*g(:,2:s2-3,:) + g(:,1:s2-4,:))/(12*hy)
+        ! cdiff4_gy(:,2,:) = (g(:,3,:) - g(:,1,:))/(2*hy)
+        ! cdiff4_gy(:,s2-1,:) = (g(:,s2,:) - g(:,s2-2,:))/(2*hy)
+
+
+        ! cdiff4_hz(:,:,3:s3-2) = (-h(:,:,5:s3) + 8*h(:,:,4:s3-1) & 
+        !                                 - 8*h(:,:,2:s3-3) + h(:,:,1:s3-4))/(12*hz)
+        ! cdiff4_hz(:,:,2) = (h(:,:,3) - h(:,:,1))/(2*hz)
+        ! cdiff4_hz(:,:,s3-1) = (h(:,:,s3) - h(:,:,s3-2))/(2*hz)
+
+
+        Lax4(2:s1-1,2:s2-1,2:s3-1) = (x(3:s1,2:s2-1,2:s3-1) + x(1:s1-2,2:s2-1,2:s3-1) & 
+                                    + x(2:s1-1,3:s2,2:s3-1) + x(2:s1-1,1:s2-2,2:s3-1) &
+                                    + x(2:s1-1,2:s2-1,3:s3) + x(2:s1-1,2:s2-1,1:s3-2)) / 6.0d0 &
+                                    - tau * cdiff4_fx(2:s1-1,2:s2-1,2:s3-1) & 
+                                    - tau * cdiff4_gy(2:s1-1,2:s2-1,2:s3-1) &
+                                    - tau * cdiff4_hz(2:s1-1,2:s2-1,2:s3-1) &
+                                    + tau * s(2:s1-1,2:s2-1,2:s3-1)
+
+        ! Lax4(2:s1-1,2:s2-1,2:s3-1) = (x(3:s1,2:s2-1,2:s3-1) + x(1:s1-2,2:s2-1,2:s3-1) & 
+        !                             + x(2:s1-1,3:s2,2:s3-1) + x(2:s1-1,1:s2-2,2:s3-1) &
+        !                             + x(2:s1-1,2:s2-1,3:s3) + x(2:s1-1,2:s2-1,1:s3-2)) / 6.0d0
+        ! Lax4 = Lax4 - tau * cdiff4_fx - tau * cdiff4_gy - tau * cdiff4_hz + tau * s
+
+        deallocate(cdiff4_fx,cdiff4_gy,cdiff4_hz)
+    end function
+
     function MacCormack(x,f,g,h,s,tau,hx,hy,hz)
         ! MacCormack scheme
         ! x is unknown term, 3D array; f,g,h are flux terms; s is the source term
