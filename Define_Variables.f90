@@ -4,11 +4,11 @@ module define_variables
     ! constants and normalizing parameters
     real(kind=8), parameter :: pi=3.1415926535
     real(kind=8), parameter :: q0=1.602176565d-19
-    real(kind=8), parameter :: m0=9.10938356d-31
     real(kind=8), parameter :: eps0=8.854187817d-12
     real(kind=8), parameter :: mu0=1.2566370614d-6
     real(kind=8) :: x0
     real(kind=8) :: t0
+    real(kind=8) :: m0
     real(kind=8) :: n0
     real(kind=8) :: v0, E0, B0, pr0, Tem0, j0, R0, eta0
     real(kind=8) :: qe, qi

@@ -14,6 +14,7 @@ contains
         ! constants and normalizing parameters
         x0 = 3.4d5
         t0 = 1.42344d-4
+        m0 = 9.10938356d-31
         n0 = 5.0d6
         v0 = x0 / t0
         E0 = m0 * v0 / (q0 * t0)
@@ -132,6 +133,141 @@ contains
         
     end subroutine
 
+    subroutine initialize_Alfven_wave
+        implicit none
+
+        integer :: i
+        real(kind=8) :: delta = 1.0d-5
+        real(kind=8) :: L, m, k
+
+        L = 10.0d0
+        m = 2.0d0
+        k = 2*pi*m/L
+
+        ! constants and normalizing parameters
+        x0 = 1.0d7
+        t0 = 1.44978d0
+        m0 = 9.10938356d-31
+        n0 = 1.0d15
+        v0 = 6.89762d6
+        E0 = m0 * v0 / (q0 * t0)
+        B0 = m0 / (q0 * t0)
+        pr0 = m0 * n0 * v0**2
+        Tem0 = m0 * v0**2
+        j0 = B0 / (mu0 * x0)
+        eta0 = m0 / (q0**2 * n0 * t0)
+        R0 = eta0 * q0 * n0 * j0
+        const1 = mu0 * x0**2 * n0 * q0**2 / m0   ! used in calculating current density j
+        const2 = t0**2 / (mu0 * eps0 * x0**2)    ! used in calculating electric field E
+        const3 = R0 / (m0 * n0 * v0 / t0)   ! used in fraction term Re and Ri
+        qe = -1.0d0
+        qi = 1.0d0
+        me = 1.0d0
+        mi = 1836.5d0
+
+        print *, "x0 = ", x0
+        print *, "t0 = ", t0
+        print *, "n0 = ", n0
+        print *, "v0 = ", v0
+        print *, "E0 = ", E0
+        print *, "B0 = ", B0
+        print *, "pr0 = ", pr0
+        print *, "Tem0 = ", Tem0
+        print *, "j0 = ", j0
+        print *, "eta0 = ", eta0
+        print *, "R0 = ", R0
+        print *, "const1 = ", const1
+        print *, "const2 = ", const2
+        print *, "const3 = ", const3
+
+        ! grid and index
+        Nx=201
+        Ny=201
+        Nz=201
+        xmin = -5.d0
+        xmax = 5.d0
+        ymin = -5.d0
+        ymax = 5.d0
+        zmin = -5.d0
+        zmax = 5.d0
+        
+        call grid
+
+        ! time and time step
+        time = 0.0
+        nstep = 0
+        nmax = 10
+        nout = 1    ! output frequency
+        allocate(time_series(nmax))
+
+        ! physical parameter
+        allocate(ne(Nx, Ny, Nz), ni(Nx, Ny, Nz))
+        allocate(vex(Nx, Ny, Nz), vey(Nx, Ny, Nz), vez(Nx, Ny, Nz), vix(Nx, Ny, Nz), viy(Nx, Ny, Nz), viz(Nx, Ny, Nz))
+        allocate(Bsx(Nx, Ny, Nz), Bsy(Nx, Ny, Nz), Bsz(Nx, Ny, Nz), Bex(Nx, Ny, Nz), Bey(Nx, Ny, Nz), Bez(Nx, Ny, Nz))
+        allocate(Esx(Nx, Ny, Nz), Esy(Nx, Ny, Nz), Esz(Nx, Ny, Nz), Eex(Nx, Ny, Nz), Eey(Nx, Ny, Nz), Eez(Nx, Ny, Nz))
+        allocate(Bsx_pre(Nx,Ny,Nz), Bsy_pre(Nx,Ny,Nz), Bsz_pre(Nx,Ny,Nz))
+        allocate(Esx_pre(Nx,Ny,Nz), Esy_pre(Nx,Ny,Nz), Esz_pre(Nx,Ny,Nz))
+        allocate(Bx(Nx, Ny, Nz), By(Nx, Ny, Nz), Bz(Nx, Ny, Nz), Ex(Nx, Ny, Nz), Ey(Nx, Ny, Nz), Ez(Nx, Ny, Nz))
+        allocate(jx(Nx, Ny, Nz), jy(Nx, Ny, Nz), jz(Nx, Ny, Nz))
+        allocate(Te(Nx, Ny, Nz), Ti(Nx, Ny, Nz))
+        allocate(pre(Nx, Ny, Nz), pri(Nx, Ny, Nz), eta(Nx, Ny, Nz))
+        allocate(divB(Nx,Ny,Nz),divB_time(nmax),divE(Nx,Ny,Nz),divE_time(nmax))
+
+        ne = 1.0d0
+        ni = 1.0d0
+
+        Bsx = 0.d0
+        do i = 1, Nx
+            Bsy(i,:,:) = delta * cos(k*x(i))
+        end do
+        Bsz = 0.d0
+        Bex = 1.d0
+        Bey = 0.d0
+        Bez = 0.d0
+
+        Esx = 0.d0
+        Esy = 0.d0
+        Esz = 0.d0
+        Eex = 0.d0
+        Eey = 0.d0
+        Eez = 0.d0
+
+        Bsx_pre = 0.d0
+        Bsy_pre = 0.d0
+        Bsz_pre = 0.d0
+        Esx_pre = 0.d0
+        Esy_pre = 0.d0
+        Esz_pre = 0.d0
+
+        call total_EMfield
+
+        pre = 1.0d0
+        pri = 1.0d0
+
+        Te = pre/ne
+        Ti = pri/ni
+
+        vex = 0.d0
+        vey = 0.0d0
+        vez = 0.d0
+        vix = 0.d0
+        do i = 1, Nx
+            viy(i,:,:) = -delta * cos(k*x(i))
+        end do
+        viz = 0.d0
+        
+        eta = 0.0d0
+
+        call current
+
+        divB = 0.d0
+        gamma = 5.0d0/3.0d0
+
+        ! controling parameter
+        is_abnormal_resistance = .false.
+        
+    end subroutine
+
     subroutine initialize_Harris_sheet
         implicit none
 
@@ -144,6 +280,7 @@ contains
         ! constants and normalizing parameters
         x0 = 3.4d5
         t0 = 1.42344d-4
+        m0 = 9.10938356d-31
         n0 = 5.0d6
         v0 = x0 / t0
         E0 = m0 * v0 / (q0 * t0)
@@ -192,8 +329,8 @@ contains
         ! time and time step
         time = 0.0
         nstep = 0
-        nmax = 5000
-        nout = 500
+        nmax = 10
+        nout = 1
         allocate(time_series(nmax))
 
         ! physical parameter
@@ -268,21 +405,17 @@ contains
     subroutine stepon
         implicit none
 
-        !call shear_flow
-
         call continuity_equation
         call momentum_equation
         call energy_equation
 
-
-
-        call EMField_eqution
-        
+        call EMField_eqution 
         call total_EMfield
 
-        call abnormal_resistance
+        call shear_flow
         call current
         call pressure
+        call abnormal_resistance
 
         call check
     end subroutine
@@ -1077,15 +1210,15 @@ contains
         zs = 0.0d0  ! the central position of the shear flow
         lsx = 1.0d0 ! the characteristic length of the shear flow
         lsz = 1.0d0 ! the characteristic length of the shear flow
-        tao_s = 0.1d0  ! the characteristic time of the shear flow
+        tao_s = 1.0d0  ! the characteristic time of the shear flow
 
         if (time>tshear_start .and. time<tshear_end) then
             do k = 1, Nz
                 do i = 1, Nx
-                    vey(i,:,k) = vey(i,:,k) - vshear * exp(-(((x(i) - xs)/lsx)**2  + ((z(k) - zs)/lsz)**2)) &
-                                                 * (tanh((time+tau-tshear_start)/tao_s)-tanh((time-tshear_start)/tao_s))
+                    vey(i,:,k) = vey(i,:,k) + vshear * exp(-(((x(i) - xs)/lsx)**2  + ((z(k) - zs)/lsz)**2)) &
+                                                 * (tanh((time-tshear_start)/tao_s)-tanh((time-tau-tshear_start)/tao_s))
                     viy(i,:,k) = viy(i,:,k) + vshear * exp(-(((x(i) - xs)/lsx)**2  + ((z(k) - zs)/lsz)**2)) &
-                                                 * (tanh((time+tau-tshear_start)/tao_s)-tanh((time-tshear_start)/tao_s))
+                                                 * (tanh((time-tshear_start)/tao_s)-tanh((time-tau-tshear_start)/tao_s))
                 end do
             end do
         end if
