@@ -180,6 +180,72 @@ contains
         cdiff4_z(:,:,size(a,3)) = (3.0d0*a(:,:,size(a,3)) - 4.0d0*a(:,:,size(a,3)-1) + a(:,:,size(a,3)-2))/(2*hz)
     end function
 
+    function cdiff6_x(a,hx)
+        ! a is a 3D array, hx is the grid spacing in x direction
+        ! 6th order central difference in x direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff6_x
+        real(kind=8) :: hx
+
+        cdiff6_x(4:size(a,1)-3,:,:) = (-45*(a(7:size(a,1),:,:) - a(1:size(a,1)-6,:,:)) & 
+                                        + 9*(a(6:size(a,1)-1,:,:) - a(2:size(a,1)-5,:,:)) & 
+                                        - (a(5:size(a,1)-2,:,:) - a(3:size(a,1)-4,:,:))) / (60*hx)
+        cdiff6_x(3,:,:) = (8*(a(4,:,:) - a(2,:,:)) - (a(5,:,:) - a(1,:,:))) / (12*hx)
+        cdiff6_x(size(a,1)-2,:,:) = (8*(a(size(a,1)-1,:,:) - a(size(a,1)-3,:,:)) & 
+                                        - (a(size(a,1),:,:) - a(size(a,1)-4,:,:))) / (12*hx)
+
+        cdiff6_x(2,:,:) = (a(3,:,:) - a(1,:,:)) / (2*hx)
+        cdiff6_x(size(a,1)-1,:,:) = (a(size(a,1),:,:) - a(size(a,1)-2,:,:))/(2*hx)
+
+        cdiff6_x(1,:,:) = (-3.0d0*a(1,:,:) + 4.0d0*a(2,:,:) - a(3,:,:))/(2*hx)
+        cdiff6_x(size(a,1),:,:) = (3.0d0*a(size(a,1),:,:) - 4.0d0*a(size(a,1)-1,:,:) + a(size(a,1)-2,:,:))/(2*hx)
+    end function
+
+    function cdiff6_y(a,hy)
+        ! a is a 3D array, hy is the grid spacing in y direction
+        ! 6th order central difference in y direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff6_y
+        real(kind=8) :: hy
+
+        cdiff6_y(:,4:size(a,2)-3,:) = (-45*(a(:,7:size(a,2),:) - a(:,1:size(a,2)-6,:)) & 
+                                        + 9*(a(:,6:size(a,2)-1,:) - a(:,2:size(a,2)-5,:)) & 
+                                        - (a(:,5:size(a,2)-2,:) - a(:,3:size(a,2)-4,:))) / (60*hy)
+        cdiff6_y(:,3,:) = (8*(a(:,4,:) - a(:,2,:)) - (a(:,5,:) - a(:,1,:))) / (12*hy)
+        cdiff6_y(:,size(a,2)-2,:) = (8*(a(:,size(a,2)-1,:) - a(:,size(a,2)-3,:)) & 
+                                        - (a(:,size(a,2),:) - a(:,size(a,2)-4,:))) / (12*hy)
+
+        cdiff6_y(:,2,:) = (a(:,3,:) - a(:,1,:)) / (2*hy)
+        cdiff6_y(:,size(a,2)-1,:) = (a(:,size(a,2),:) - a(:,size(a,2)-2,:))/(2*hy)
+
+        cdiff6_y(:,1,:) = (-3.0d0*a(:,1,:) + 4.0d0*a(:,2,:) - a(:,3,:))/(2*hy)
+        cdiff6_y(:,size(a,2),:) = (3.0d0*a(:,size(a,2),:) - 4.0d0*a(:,size(a,2)-1,:) + a(:,size(a,2)-2,:))/(2*hy)
+    end function
+
+    function cdiff6_z(a,hz)
+        ! a is a 3D array, hz is the grid spacing in z direction
+        ! 6th order central difference in z direction
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: a
+        real(kind=8), dimension(size(a,1),size(a,2),size(a,3)) :: cdiff6_z
+        real(kind=8) :: hz
+
+        cdiff6_z(:,:,4:size(a,3)-3) = (-45*(a(:,:,7:size(a,3)) - a(:,:,1:size(a,3)-6)) & 
+                                        + 9*(a(:,:,6:size(a,3)-1) - a(:,:,2:size(a,3)-5)) & 
+                                        - (a(:,:,5:size(a,3)-2) - a(:,:,3:size(a,3)-4))) / (60*hz)
+        cdiff6_z(:,:,3) = (8*(a(:,:,4) - a(:,:,2)) - (a(:,:,5) - a(:,:,1))) / (12*hz)
+        cdiff6_z(:,:,size(a,3)-2) = (8*(a(:,:,size(a,3)-1) - a(:,:,size(a,3)-3)) & 
+                                        - (a(:,:,size(a,3)) - a(:,:,size(a,3)-4))) / (12*hz)
+
+        cdiff6_z(:,:,2) = (a(:,:,3) - a(:,:,1)) / (2*hz)
+        cdiff6_z(:,:,size(a,3)-1) = (a(:,:,size(a,3)) - a(:,:,size(a,3)-2))/(2*hz)
+
+        cdiff6_z(:,:,1) = (-3.0d0*a(:,:,1) + 4.0d0*a(:,:,2) - a(:,:,3))/(2*hz)
+        cdiff6_z(:,:,size(a,3)) = (3.0d0*a(:,:,size(a,3)) - 4.0d0*a(:,:,size(a,3)-1) + a(:,:,size(a,3)-2))/(2*hz)
+    end function
+
     function Lax(x,f,g,h,s,tau,hx,hy,hz)
         ! x is unknown term, 3D array; f,g,h are flux terms; s is the source term
         ! Lax scheme
@@ -222,23 +288,6 @@ contains
         cdiff4_gy = cdiff4_y(g,hy)
         cdiff4_hz = cdiff4_z(h,hz)
 
-        ! cdiff4_fx(3:s1-2,:,:) = (-f(5:s1,:,:) + 8*f(4:s1-1,:,:) & 
-        !                                 - 8*f(2:s1-3,:,:) + f(1:s1-4,:,:))/(12*hx)
-        ! cdiff4_fx(2,:,:) = (f(3,:,:) - f(1,:,:))/(2*hx)
-        ! cdiff4_fx(s1-1,:,:) = (f(s1,:,:) - f(s1-2,:,:))/(2*hx)
-
-        ! cdiff4_gy(:,3:s2-2,:) = (-g(:,5:s2,:) + 8*g(:,4:s2-1,:) & 
-        !                                 - 8*g(:,2:s2-3,:) + g(:,1:s2-4,:))/(12*hy)
-        ! cdiff4_gy(:,2,:) = (g(:,3,:) - g(:,1,:))/(2*hy)
-        ! cdiff4_gy(:,s2-1,:) = (g(:,s2,:) - g(:,s2-2,:))/(2*hy)
-
-
-        ! cdiff4_hz(:,:,3:s3-2) = (-h(:,:,5:s3) + 8*h(:,:,4:s3-1) & 
-        !                                 - 8*h(:,:,2:s3-3) + h(:,:,1:s3-4))/(12*hz)
-        ! cdiff4_hz(:,:,2) = (h(:,:,3) - h(:,:,1))/(2*hz)
-        ! cdiff4_hz(:,:,s3-1) = (h(:,:,s3) - h(:,:,s3-2))/(2*hz)
-
-
         Lax4(2:s1-1,2:s2-1,2:s3-1) = (x(3:s1,2:s2-1,2:s3-1) + x(1:s1-2,2:s2-1,2:s3-1) & 
                                     + x(2:s1-1,3:s2,2:s3-1) + x(2:s1-1,1:s2-2,2:s3-1) &
                                     + x(2:s1-1,2:s2-1,3:s3) + x(2:s1-1,2:s2-1,1:s3-2)) / 6.0d0 &
@@ -247,12 +296,36 @@ contains
                                     - tau * cdiff4_hz(2:s1-1,2:s2-1,2:s3-1) &
                                     + tau * s(2:s1-1,2:s2-1,2:s3-1)
 
-        ! Lax4(2:s1-1,2:s2-1,2:s3-1) = (x(3:s1,2:s2-1,2:s3-1) + x(1:s1-2,2:s2-1,2:s3-1) & 
-        !                             + x(2:s1-1,3:s2,2:s3-1) + x(2:s1-1,1:s2-2,2:s3-1) &
-        !                             + x(2:s1-1,2:s2-1,3:s3) + x(2:s1-1,2:s2-1,1:s3-2)) / 6.0d0
-        ! Lax4 = Lax4 - tau * cdiff4_fx - tau * cdiff4_gy - tau * cdiff4_hz + tau * s
-
         deallocate(cdiff4_fx,cdiff4_gy,cdiff4_hz)
+    end function
+
+    function Lax6(x,f,g,h,s,tau,hx,hy,hz)
+        ! x is unknown term, 3D array; f,g,h are flux terms; s is the source term
+        ! Lax scheme
+        implicit none
+        real(kind=8), dimension(:,:,:), intent(in) :: x,f,g,h,s
+        real(kind=8), dimension(size(x,1),size(x,2),size(x,3)) :: Lax6
+        real(kind=8) :: tau,hx,hy,hz
+        integer :: s1,s2,s3
+        real(kind=8), allocatable, dimension(:,:,:) :: cdiff6_fx,cdiff6_gy,cdiff6_hz
+
+        s1 = size(x,1)
+        s2 = size(x,2)
+        s3 = size(x,3)
+
+        allocate(cdiff6_fx(s1,s2,s3),cdiff6_gy(s1,s2,s3),cdiff6_hz(s1,s2,s3))
+
+        cdiff6_fx = cdiff6_x(f,hx)
+        cdiff6_gy = cdiff6_y(g,hy)
+        cdiff6_hz = cdiff6_z(h,hz)
+
+        Lax6(2:s1-1,2:s2-1,2:s3-1) = (x(3:s1,2:s2-1,2:s3-1) + x(1:s1-2,2:s2-1,2:s3-1) & 
+                                    + x(2:s1-1,3:s2,2:s3-1) + x(2:s1-1,1:s2-2,2:s3-1) &
+                                    + x(2:s1-1,2:s2-1,3:s3) + x(2:s1-1,2:s2-1,1:s3-2)) / 6.0d0 &
+                                    - tau * cdiff6_fx(2:s1-1,2:s2-1,2:s3-1) & 
+                                    - tau * cdiff6_gy(2:s1-1,2:s2-1,2:s3-1) &
+                                    - tau * cdiff6_hz(2:s1-1,2:s2-1,2:s3-1) &
+                                    + tau * s(2:s1-1,2:s2-1,2:s3-1)
     end function
 
     function MacCormack(x,f,g,h,s,tau,hx,hy,hz)

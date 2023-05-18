@@ -273,13 +273,13 @@ contains
 
         ! parameters of Harris sheet -------------------------------
         real(kind=8) :: Lh = 1.0d0 ! Harris sheet half thickness
-        real(kind=8) :: Bh = -1.0d0 ! Harris sheet magnetic field
+        real(kind=8) :: Bh = -193859d0 ! Harris sheet magnetic field
         integer :: i
         ! --------------------------------------------------------
 
         ! constants and normalizing parameters
         x0 = 3.4d5
-        t0 = 1.42344d-4
+        t0 = 27.5553d0
         m0 = 9.10938356d-31
         n0 = 5.0d6
         v0 = x0 / t0
@@ -296,10 +296,11 @@ contains
         qe = -1.0d0
         qi = 1.0d0
         me = 1.0d0
-        mi = 1864.0d0
+        mi = 1836.5d0
 
         print *, "x0 = ", x0
         print *, "t0 = ", t0
+        print *, "m0 = ", m0
         print *, "n0 = ", n0
         print *, "v0 = ", v0
         print *, "E0 = ", E0
@@ -405,23 +406,60 @@ contains
     subroutine stepon
         implicit none
 
-        call continuity_equation
-        call momentum_equation
-        call energy_equation
+        real(kind=8), allocatable :: ne_temp(:,:,:), ni_temp(:,:,:)
+        real(kind=8), allocatable :: vex_temp(:,:,:), vey_temp(:,:,:), vez_temp(:,:,:)
+        real(kind=8), allocatable :: vix_temp(:,:,:), viy_temp(:,:,:), viz_temp(:,:,:)
+        real(kind=8), allocatable :: Te_temp(:,:,:), Ti_temp(:,:,:)
+
+        allocate(ne_temp(Nx, Ny, Nz), ni_temp(Nx, Ny, Nz))
+        allocate(vex_temp(Nx, Ny, Nz), vey_temp(Nx, Ny, Nz), vez_temp(Nx, Ny, Nz))
+        allocate(vix_temp(Nx, Ny, Nz), viy_temp(Nx, Ny, Nz), viz_temp(Nx, Ny, Nz))
+        allocate(Te_temp(Nx, Ny, Nz), Ti_temp(Nx, Ny, Nz))
+
+        ne_temp = ne
+        ni_temp = ni
+        vex_temp = vex
+        vey_temp = vey
+        vez_temp = vez
+        vix_temp = vix
+        viy_temp = viy
+        viz_temp = viz
+        Te_temp = Te
+        Ti_temp = Ti
+
+        call continuity_equation(ne_temp, ni_temp)
+        call momentum_equation(vex_temp, vey_temp, vez_temp, vix_temp, viy_temp, viz_temp)
+        call energy_equation(Te_temp, Ti_temp)
 
         call EMField_eqution 
         call total_EMfield
 
-        call shear_flow
+        ne = ne_temp
+        ni = ni_temp
+        vex = vex_temp
+        vey = vey_temp
+        vez = vez_temp
+        vix = vix_temp
+        viy = viy_temp
+        viz = viz_temp
+        Te = Te_temp
+        Ti = Ti_temp
+
+        ! call shear_flow
         call current
         call pressure
         call abnormal_resistance
 
         call check
+
+        deallocate(ne_temp, ni_temp)
+        deallocate(vex_temp, vey_temp, vez_temp, vix_temp, viy_temp, viz_temp)
+        deallocate(Te_temp, Ti_temp)
     end subroutine
 
-    subroutine energy_equation
+    subroutine energy_equation(Te,Ti)
         implicit none
+        real(kind=8), intent(inout) :: Te(:,:,:), Ti(:,:,:)
         real(kind=8), allocatable :: K1(:,:,:), K2(:,:,:), K3(:,:,:), K4(:,:,:), temp(:,:,:)
         real(kind=8), allocatable :: cdiffx(:,:,:), cdiffy(:,:,:), cdiffz(:,:,:)
 
@@ -511,8 +549,10 @@ contains
 
     end subroutine
 
-    subroutine continuity_equation
+
+    subroutine continuity_equation(ne,ni)
         implicit none
+        real(kind=8), intent(inout) :: ne(:,:,:), ni(:,:,:)
         real(kind=8), allocatable :: K1(:,:,:), K2(:,:,:), K3(:,:,:), K4(:,:,:), temp(:,:,:)
         real(kind=8), allocatable :: cdiffx(:,:,:), cdiffy(:,:,:), cdiffz(:,:,:)
 
@@ -580,8 +620,10 @@ contains
         deallocate(cdiffx, cdiffy, cdiffz)
     end subroutine
 
-    subroutine momentum_equation
+    subroutine momentum_equation(vex,vey,vez,vix,viy,viz)
         implicit none
+        real(kind=8) :: vex(:,:,:), vey(:,:,:), vez(:,:,:)
+        real(kind=8) :: vix(:,:,:), viy(:,:,:), viz(:,:,:)
         real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:), temp3(:,:,:)
         real(kind=8), allocatable :: K1(:,:,:), K2(:,:,:), K3(:,:,:), K4(:,:,:)
         integer :: i, j, k
@@ -639,11 +681,11 @@ contains
         call momentum_subouter(temp1, temp2, temp3, 1)
 
         ! add other terms
-        temp1 = temp1 + tau / (me * ne) * (ne * qe * (Ex + (vey * Bz - vez * By)) - central_difference_x(pre, hx) + const3 * Rex)
-        temp2 = temp2 + tau / (me * ne) * (ne * qe * (Ey + (vez * Bx - vex * Bz)) - central_difference_y(pre, hy) + const3 * Rey)
-        temp3 = temp3 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - central_difference_z(pre, hz) + const3 * Rez)
+        temp1 = temp1 + tau / (me * ne) * (ne * qe * (Ex + (vey * Bz - vez * By)) - cdiff4_x(pre, hx) + const3 * Rex)
+        temp2 = temp2 + tau / (me * ne) * (ne * qe * (Ey + (vez * Bx - vex * Bz)) - cdiff4_y(pre, hy) + const3 * Rey)
+        temp3 = temp3 + tau / (me * ne) * (ne * qe * (Ez + (vex * By - vey * Bx)) - cdiff4_z(pre, hz) + const3 * Rez)
 
-        cdiffz = central_difference_y(pre, hy)
+        cdiffz = cdiff4_y(pre, hy)
 
         ! open(unit=105,file="detail.dat",status='unknown',form='formatted')
         ! write(105,*)'TITLE=Debug'
@@ -659,12 +701,12 @@ contains
         call boundary(temp2)
         call boundary(temp3)
 
-        open(unit=106,file="temp23.dat",status='unknown',form='formatted')
-        write(106,*)'TITLE=Debug'
-        write(106,*) 'VARIABLES="x" "y" "z" "data"'
-        write(106,"('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')") Nx,Ny,Nz
-        write(106,"(4(1x,e11.4))") (((x(i), y(j), z(k), temp2(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
-        close(106)
+        ! open(unit=106,file="temp23.dat",status='unknown',form='formatted')
+        ! write(106,*)'TITLE=Debug'
+        ! write(106,*) 'VARIABLES="x" "y" "z" "data"'
+        ! write(106,"('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')") Nx,Ny,Nz
+        ! write(106,"(4(1x,e11.4))") (((x(i), y(j), z(k), temp2(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
+        ! close(106)
 
         ! update
         vex = temp1
@@ -720,9 +762,9 @@ contains
         ! close(104)
 
         ! add other terms
-        temp1 = temp1 + tau / (mi * ni) * (ni * qi * (Ex + (viy * Bz - viz * By)) - central_difference_x(pri, hx) + const3 * Rix)
-        temp2 = temp2 + tau / (mi * ni) * (ni * qi * (Ey + (viz * Bx - vix * Bz)) - central_difference_y(pri, hy) + const3 * Riy)
-        temp3 = temp3 + tau / (mi * ni) * (ni * qi * (Ez + (vix * By - viy * Bx)) - central_difference_z(pri, hz) + const3 * Riz)
+        temp1 = temp1 + tau / (mi * ni) * (ni * qi * (Ex + (viy * Bz - viz * By)) - cdiff4_x(pri, hx) + const3 * Rix)
+        temp2 = temp2 + tau / (mi * ni) * (ni * qi * (Ey + (viz * Bx - vix * Bz)) - cdiff4_y(pri, hy) + const3 * Riy)
+        temp3 = temp3 + tau / (mi * ni) * (ni * qi * (Ez + (vix * By - viy * Bx)) - cdiff4_z(pri, hz) + const3 * Riz)
 
         ! open(unit=104,file="temp33.dat",status='unknown',form='formatted')
         ! write(104,*)'TITLE=Debug'
@@ -774,15 +816,15 @@ contains
         allocate(cdiffzx(Nx,Ny,Nz), cdiffzy(Nx,Ny,Nz), cdiffzz(Nx,Ny,Nz))
 
         if (species==1) then    ! electron
-            cdiffxx = central_difference_x(vex, hx)
-            cdiffxy = central_difference_x(vey, hx)
-            cdiffxz = central_difference_x(vez, hx)
-            cdiffyx = central_difference_y(vex, hy)
-            cdiffyy = central_difference_y(vey, hy)
-            cdiffyz = central_difference_y(vez, hy)
-            cdiffzx = central_difference_z(vex, hz)
-            cdiffzy = central_difference_z(vey, hz)
-            cdiffzz = central_difference_z(vez, hz)
+            cdiffxx = cdiff4_x(vex, hx)
+            cdiffxy = cdiff4_x(vey, hx)
+            cdiffxz = cdiff4_x(vez, hx)
+            cdiffyx = cdiff4_y(vex, hy)
+            cdiffyy = cdiff4_y(vey, hy)
+            cdiffyz = cdiff4_y(vez, hy)
+            cdiffzx = cdiff4_z(vex, hz)
+            cdiffzy = cdiff4_z(vey, hz)
+            cdiffzz = cdiff4_z(vez, hz)
 
             vx(2:4,:,:) = vex(2:4,:,:) - tau * (vex(2:4,:,:)*cdiffxx(2:4,:,:)+ vey(2:4,:,:)*cdiffyx(2:4,:,:) & 
                                                     + vez(2:4,:,:)*cdiffzx(2:4,:,:))
@@ -824,15 +866,15 @@ contains
                                             + vey(:,:,Nz-3:Nz-1)*cdiffyz(:,:,Nz-3:Nz-1) + vez(:,:,Nz-3:Nz-1)*cdiffzz(:,:,Nz-3:Nz-1))
    
         else if (species==2) then   ! ion
-            cdiffxx = central_difference_x(vix, hx)
-            cdiffxy = central_difference_x(viy, hx)
-            cdiffxz = central_difference_x(viz, hx)
-            cdiffyx = central_difference_y(vix, hy)
-            cdiffyy = central_difference_y(viy, hy)
-            cdiffyz = central_difference_y(viz, hy)
-            cdiffzx = central_difference_z(vix, hz)
-            cdiffzy = central_difference_z(viy, hz)
-            cdiffzz = central_difference_z(viz, hz)
+            cdiffxx = cdiff4_x(vix, hx)
+            cdiffxy = cdiff4_x(viy, hx)
+            cdiffxz = cdiff4_x(viz, hx)
+            cdiffyx = cdiff4_y(vix, hy)
+            cdiffyy = cdiff4_y(viy, hy)
+            cdiffyz = cdiff4_y(viz, hy)
+            cdiffzx = cdiff4_z(vix, hz)
+            cdiffzy = cdiff4_z(viy, hz)
+            cdiffzz = cdiff4_z(viz, hz)
 
             vx(2:4,:,:) = vix(2:4,:,:) - tau * (vix(2:4,:,:)*cdiffxx(2:4,:,:)+ viy(2:4,:,:)*cdiffyx(2:4,:,:) & 
                                                     + viz(2:4,:,:)*cdiffzx(2:4,:,:))
@@ -884,94 +926,13 @@ contains
         real(kind=8), allocatable :: temp1(:,:,:), temp2(:,:,:), temp3(:,:,:)   ! for Magnetic field
         real(kind=8), allocatable :: temp4(:,:,:), temp5(:,:,:), temp6(:,:,:)   ! for Electric field
         real(kind=8), allocatable :: zero(:,:,:)
+        real(kind=8), allocatable :: cdiffx(:,:,:), cdiffz(:,:,:)
+        integer :: i, j, k
         
         allocate(temp1(Nx,Ny,Nz), temp2(Nx,Ny,Nz), temp3(Nx,Ny,Nz))
         allocate(temp4(Nx,Ny,Nz), temp5(Nx,Ny,Nz), temp6(Nx,Ny,Nz))
+        allocate(cdiffx(Nx,Ny,Nz), cdiffz(Nx,Ny,Nz))
 
-        ! -----------------------------------------------------------
-        ! if (nstep==1) then
-        !     ! Euler scheme
-        !     temp1 = Bsx - tau * (cdiff4_y(Esz,hy) - cdiff4_z(Esy,hz))
-        !     temp2 = Bsy - tau * (cdiff4_z(Esx,hz) - cdiff4_x(Esz,hx))
-        !     temp3 = Bsz - tau * (cdiff4_x(Esy,hx) - cdiff4_y(Esx,hy))
-
-        !     temp4 = Esx + tau * const2 * (cdiff4_y(Bsz,hy) - cdiff4_z(Bsy,hz) - Jx)
-        !     temp5 = Esy + tau * const2 * (cdiff4_z(Bsx,hz) - cdiff4_x(Bsz,hx) - Jy)
-        !     temp6 = Esz + tau * const2 * (cdiff4_x(Bsy,hx) - cdiff4_y(Bsx,hy) - Jz)
-            
-
-        ! else
-        !     ! leapfrog scheme
-        !     temp1 = Bsx_pre - 2.0d0 * tau * (cdiff4_y(Esz,hy) - cdiff4_z(Esy,hz))
-        !     temp2 = Bsy_pre - 2.0d0 * tau * (cdiff4_z(Esx,hz) - cdiff4_x(Esz,hx))
-        !     temp3 = Bsz_pre - 2.0d0 * tau * (cdiff4_x(Esy,hx) - cdiff4_y(Esx,hy))
-
-        !     temp4 = Esx_pre + 2.0d0 * tau * const2 * (cdiff4_y(Bsz,hy) - cdiff4_z(Bsy,hz) - Jx)
-        !     temp5 = Esy_pre + 2.0d0 * tau * const2 * (cdiff4_z(Bsx,hz) - cdiff4_x(Bsz,hx) - Jy)
-        !     temp6 = Esz_pre + 2.0d0 * tau * const2 * (cdiff4_x(Bsy,hx) - cdiff4_y(Bsx,hy) - Jz)
-        ! end if
-
-        ! call boundary(temp1)
-        ! call boundary(temp2)
-        ! call boundary(temp3)
-        ! call boundary(temp4)
-        ! call boundary(temp5)
-        ! call boundary(temp6)
-
-        ! ! update
-        ! Bsx_pre = Bsx
-        ! Bsy_pre = Bsy
-        ! Bsz_pre = Bsz
-
-        ! Esx_pre = Esx
-        ! Esy_pre = Esy
-        ! Esz_pre = Esz
-
-        ! Bsx = temp1
-        ! Bsy = temp2
-        ! Bsz = temp3
-
-        ! Esx = temp4
-        ! Esy = temp5
-        ! Esz = temp6
-
-        ! deallocate(temp1, temp2, temp3)
-        ! deallocate(temp4, temp5, temp6)
-
-
-        ! -----------------------------------------------------------
-        ! Lax scheme
-        ! allocate(zero(Nx,Ny,Nz))
-        ! zero = 0.0d0
-
-        ! temp1 = Lax(Bsx,zero,Esz,-Esy,zero,tau,hx,hy,hz)
-        ! temp2 = Lax(Bsy,-Esz,zero,Esx,zero,tau,hx,hy,hz)
-        ! temp3 = Lax(Bsz,Esy,-Esx,zero,zero,tau,hx,hy,hz)
-
-        ! temp4 = const2*Lax(Esx/const2,zero,-Bsz,Bsy,-Jx,tau,hx,hy,hz)
-        ! temp5 = const2*Lax(Esy/const2,Bsz,zero,-Bsx,-Jy,tau,hx,hy,hz)
-        ! temp6 = const2*Lax(Esz/const2,-Bsy,Bsx,zero,-Jz,tau,hx,hy,hz)
-
-        ! call boundary(temp1)
-        ! call boundary(temp2)
-        ! call boundary(temp3)
-        ! call boundary(temp4)
-        ! call boundary(temp5)
-        ! call boundary(temp6)
-
-        ! Bsx = temp1
-        ! Bsy = temp2
-        ! Bsz = temp3
-
-        ! Esx = temp4
-        ! Esy = temp5
-        ! Esz = temp6
-
-        ! deallocate(temp1, temp2, temp3)
-        ! deallocate(temp4, temp5, temp6)
-        ! deallocate(zero)
-
-        ! -----------------------------------------------------------
         ! Magnetic filed use leapfrog scheme, Electric field use Lax scheme
         ! Magnetic field
         if (nstep==1) then
@@ -992,9 +953,19 @@ contains
         allocate(zero(Nx,Ny,Nz))
         zero = 0.0d0
 
-        temp4 = const2*Lax4(Esx/const2,zero,-Bsz,Bsy,-Jx,tau,hx,hy,hz)
-        temp5 = const2*Lax4(Esy/const2,Bsz,zero,-Bsx,-Jy,tau,hx,hy,hz)
-        temp6 = const2*Lax4(Esz/const2,-Bsy,Bsx,zero,-Jz,tau,hx,hy,hz)
+        temp4 = const2*Lax4(Esx/const2,zero,-Bsz,Bsy,-jx,tau,hx,hy,hz)
+        temp5 = const2*Lax4(Esy/const2,Bsz,zero,-Bsx,-jy,tau,hx,hy,hz)
+        temp6 = const2*Lax4(Esz/const2,-Bsy,Bsx,zero,-jz,tau,hx,hy,hz)
+
+        ! cdiffx = cdiff4_x(Bsz,hx)
+        ! cdiffz = cdiff4_z(Bsx,hz)
+
+        ! open(unit=107,file="Ey.dat",status='unknown',form='formatted')
+        ! write(107,*)'TITLE=Debug'
+        ! write(107,*) 'VARIABLES="x" "y" "z" "partial_x_Bsz" "partial_z_Bsx" "jy"'
+        ! write(107,"('ZONE I=',i3,' J=',i3,' K=',i3,' F=POINT ')") Nx,Ny,Nz
+        ! write(107,"(4(1x,e11.4))") (((x(i), y(j), z(k), cdiffx(i,j,k), cdiffz(i,j,k), jy(i,j,k), i=1, Nx), j=1, Ny), k=1, Nz)
+        ! close(107)
 
         call boundary(temp1)
         call boundary(temp2)
@@ -1113,7 +1084,7 @@ contains
         dt2 = minval(minval(minval(temp2,3),2),1)
 
         !tau = 0.5*min(dt1, dt2)
-        tau = 0.01d0
+        tau = 1.0d-5
         
         deallocate(temp1, temp2)
     end subroutine
@@ -1202,7 +1173,7 @@ contains
         real(kind=8) :: xs, zs, lsx, lsz, tao_s
         integer :: i, k
 
-        vshear = 3.2d-3  ! the velocity of the shear flow
+        vshear = 0.6d0  ! the velocity of the shear flow
         tshear_start = 0.0d0
         tshear_end = 10.0d0
 
@@ -1210,7 +1181,7 @@ contains
         zs = 0.0d0  ! the central position of the shear flow
         lsx = 1.0d0 ! the characteristic length of the shear flow
         lsz = 1.0d0 ! the characteristic length of the shear flow
-        tao_s = 1.0d0  ! the characteristic time of the shear flow
+        tao_s = 10d0  ! the characteristic time of the shear flow
 
         if (time>tshear_start .and. time<tshear_end) then
             do k = 1, Nz
@@ -1246,6 +1217,7 @@ contains
                         vix(i,j,k),viy(i,j,k),viz(i,j,k),Bx(i,j,k), By(i,j,k), Bz(i,j,k), &
                         Ex(i,j,k), Ey(i,j,k), Ez(i,j,k), Te(i,j,k), Ti(i,j,k), pre(i,j,k), pri(i,j,k), &
                         jx(i,j,k), jy(i,j,k), jz(i,j,k),i=1,Nx),j=1,Ny),k=1,Nz)
+        close(101)
     end subroutine
 
     subroutine record_divBE
